@@ -2,8 +2,16 @@ import { ArrowRight, Play } from 'lucide-react'
 import { motion } from 'framer-motion'
 import GradientBlinds from './GradientBlinds'
 
-export default function Hero() {
+interface HeroProps {
+  onNavigate?: (to: string) => void
+}
+
+export default function Hero({ onNavigate }: HeroProps) {
   const scrollToSection = (id: string) => {
+    if (id === 'dashboard' && onNavigate) {
+      onNavigate('/dashboard')
+      return
+    }
     const element = document.getElementById(id)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
@@ -69,7 +77,7 @@ export default function Hero() {
           >
             <button
               onClick={() => scrollToSection('dashboard')}
-              className="group px-8 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-lg font-semibold rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-all hover:scale-105 shadow-xl glow-emerald-hover ripple flex items-center gap-2 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+              className="glass-button glass-button--primary group px-8 py-4 text-lg font-semibold flex items-center gap-2 min-h-[44px] focus:outline-none"
             >
               View Live Dashboard
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -77,7 +85,7 @@ export default function Hero() {
 
             <button
               onClick={() => scrollToSection('how-it-works')}
-              className="group px-8 py-4 bg-transparent text-zinc-400 text-lg font-semibold rounded-lg border border-zinc-800 hover:border-zinc-700 hover:text-zinc-50 transition-all hover:scale-105 flex items-center gap-2 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+              className="glass-button glass-button--ghost group px-8 py-4 text-lg font-semibold flex items-center gap-2 min-h-[44px] focus:outline-none"
             >
               <Play className="w-5 h-5" />
               Watch Demo

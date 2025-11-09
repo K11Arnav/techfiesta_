@@ -1,0 +1,69 @@
+.glass-button {
+  --glass-frost: 0.06;
+  --glass-saturation: 1.6;
+  --glass-brightness: 1;
+  --glass-border: rgba(255,255,255,0.12);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  min-height: 44px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  color: white;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(8px) saturate(var(--glass-saturation)) brightness(var(--glass-brightness));
+  box-shadow: 0 6px 18px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+  transition: transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 160ms, background 160ms, opacity 160ms;
+  cursor: pointer;
+  user-select: none;
+}
+
+.glass-button:active { transform: translateY(1px) scale(0.997); }
+.glass-button:focus { outline: none; box-shadow: 0 8px 30px rgba(2,6,23,0.7), 0 0 0 4px rgba(34,197,94,0.06); }
+
+.glass-button__content { display: inline-flex; align-items:center; gap:0.5rem; }
+
+/* Variants */
+.glass-button--primary {
+  background: linear-gradient(90deg, rgba(16,185,129,0.12), rgba(34,211,238,0.08));
+  border-color: rgba(16,185,129,0.18);
+  color: white;
+}
+
+.glass-button--primary:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(16,185,129,0.14), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.glass-button--secondary {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border-color: rgba(255,255,255,0.06);
+  color: #e6eef0;
+}
+
+.glass-button--ghost {
+  background: transparent;
+  border-color: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.9);
+}
+
+/* Slight shimmer when hovered for primary */
+.glass-button--primary::after {
+  content: '';
+  position: absolute;
+  top: -40%; left: -60%;
+  width: 60%; height: 200%;
+  background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.0));
+  transform: rotate(20deg) translateX(-100%);
+  transition: transform 0.9s cubic-bezier(.2,.9,.2,1), opacity 300ms;
+  opacity: 0;
+  pointer-events: none;
+}
+.glass-button--primary:hover::after { transform: rotate(20deg) translateX(0); opacity: 1; }
+
+/* Accessibility: reduced-motion */
+@media (prefers-reduced-motion: reduce) { .glass-button, .glass-button--primary::after { transition: none !important; } }

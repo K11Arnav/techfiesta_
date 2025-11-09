@@ -3,15 +3,31 @@ import { Menu, X } from 'lucide-react'
 
 interface NavigationProps {
   scrolled: boolean
+  onNavigate?: (to: string) => void
 }
 
-export default function Navigation({ scrolled }: NavigationProps) {
+export default function Navigation({ scrolled, onNavigate }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const scrollToSection = (id: string) => {
+    // If navigating to the dashboard route, prefer client-side navigation
+    if (id === 'dashboard' && onNavigate) {
+      onNavigate('/dashboard')
+      setMobileMenuOpen(false)
+      return
+    }
+
     const element = document.getElementById(id)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
+      setMobileMenuOpen(false)
+      return
+    }
+
+    // If we're on another page (eg /dashboard) and element isn't present,
+    // use client-side navigation back to home and scroll to the section.
+    if (onNavigate) {
+      onNavigate(`/#${id}`)
       setMobileMenuOpen(false)
     }
   }
@@ -57,7 +73,7 @@ export default function Navigation({ scrolled }: NavigationProps) {
             </button>
             <button
               onClick={() => scrollToSection('cta')}
-              className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-all hover:scale-105 font-medium text-sm glow-emerald-hover ripple"
+              className="glass-button glass-button--primary px-6 py-2 text-sm font-medium"
             >
               Try Demo
             </button>
@@ -104,7 +120,7 @@ export default function Navigation({ scrolled }: NavigationProps) {
             </button>
             <button
               onClick={() => scrollToSection('cta')}
-              className="block w-full text-left px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-colors"
+              className="glass-button glass-button--primary w-full text-left px-4 py-2 text-sm font-medium"
             >
               Try Demo
             </button>

@@ -26,7 +26,7 @@ export default function DashboardPreview() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="relative"
+          className="relative z-10"
         >
           {/* macOS Window Chrome */}
           <div className="bg-zinc-800 rounded-t-lg border border-zinc-800 px-4 py-3 flex items-center gap-2">
@@ -146,8 +146,8 @@ export default function DashboardPreview() {
             </div>
           </div>
 
-          {/* Reflection */}
-          <div className="absolute -bottom-8 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950/50 to-transparent opacity-10 transform scale-y-[-1] blur-xl"></div>
+          {/* Reflection (non-interactive) */}
+          <div className="absolute -bottom-8 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950/50 to-transparent opacity-10 transform scale-y-[-1] blur-xl pointer-events-none z-0"></div>
         </motion.div>
       </div>
     </section>

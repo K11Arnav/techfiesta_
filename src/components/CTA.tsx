@@ -1,7 +1,11 @@
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 
-export default function CTA() {
+interface CTAProps {
+  onNavigate?: (to: string) => void
+}
+
+export default function CTA({ onNavigate }: CTAProps) {
   return (
     <section
       id="cta"
@@ -19,15 +23,19 @@ export default function CTA() {
           </h2>
 
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => {
+              if (onNavigate) {
+                onNavigate('/dashboard')
+                return
+              }
               const element = document.getElementById('dashboard')
               if (element) {
                 element.scrollIntoView({ behavior: 'smooth' })
               }
             }}
-            className="group px-8 py-4 bg-white text-zinc-900 text-lg font-semibold rounded-lg hover:bg-zinc-50 transition-all shadow-2xl hover:shadow-3xl flex items-center gap-2 min-h-[44px] mx-auto ripple focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-600"
+            className="glass-button glass-button--primary group px-8 py-4 text-zinc-900 text-lg font-semibold flex items-center gap-2 min-h-[44px] mx-auto"
           >
             Start Free Trial
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

@@ -1,4 +1,4 @@
-import { Zap, Brain, Shield, TrendingUp, BarChart3, Bell, Activity } from 'lucide-react'
+import { Brain, Shield, TrendingUp, BarChart3, Bell, Activity } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const features = [

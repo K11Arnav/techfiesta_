@@ -1,6 +1,10 @@
 import { Github, Mail } from 'lucide-react'
 
-export default function Footer() {
+interface FooterProps {
+  onNavigate?: (to: string) => void
+}
+
+export default function Footer({ onNavigate }: FooterProps) {
   return (
     <footer className="bg-zinc-950 border-t border-zinc-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,6 +35,10 @@ export default function Footer() {
             </button>
             <button
               onClick={() => {
+                if (onNavigate) {
+                  onNavigate('/dashboard')
+                  return
+                }
                 const element = document.getElementById('dashboard')
                 if (element) {
                   element.scrollIntoView({ behavior: 'smooth' })
