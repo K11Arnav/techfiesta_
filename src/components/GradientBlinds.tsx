@@ -72,6 +72,9 @@ const GradientBlinds: React.FC<GradientBlindsProps> = ({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    
+    // Find the parent section element to listen for pointer events
+    const parentSection = container.closest('section') || container.parentElement;
 
     const renderer = new Renderer({
       dpr: dpr ?? (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1),
@@ -290,7 +293,7 @@ void main() {
     ro.observe(container);
 
     const onPointerMove = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = container.getBoundingClientRect();
       const scale = (renderer as unknown as { dpr?: number }).dpr || 1;
       const x = (e.clientX - rect.left) * scale;
       const y = (rect.height - (e.clientY - rect.top)) * scale;
@@ -301,7 +304,10 @@ void main() {
       }
     };
 
-    canvas.addEventListener('pointermove', onPointerMove);
+    // Listen on the parent section so it works even when hovering over child elements
+    // This ensures the hover animation works when cursor is over text or buttons
+    const eventTarget = parentSection || container;
+    eventTarget.addEventListener('pointermove', onPointerMove, { passive: true });
 
     const loop = (t: number) => {
       rafRef.current = requestAnimationFrame(loop);
@@ -335,7 +341,8 @@ void main() {
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      canvas.removeEventListener('pointermove', onPointerMove);
+      const eventTarget = parentSection || container;
+      eventTarget.removeEventListener('pointermove', onPointerMove);
       ro.disconnect();
       if (canvas.parentElement === container) {
         container.removeChild(canvas);

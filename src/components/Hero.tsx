@@ -40,13 +40,13 @@ export default function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="text-6xl md:text-7xl font-bold tracking-tighter mb-6"
+            className="text-6xl md:text-7xl font-bold tracking-tighter mb-6 pointer-events-none"
           >
-            <span className="bg-gradient-to-br from-zinc-50 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-br from-zinc-50 via-zinc-200 to-zinc-400 bg-clip-text text-transparent pointer-events-none">
               Stop Fraud in
             </span>
             <br />
-            <span className="bg-gradient-to-br from-emerald-400 via-cyan-400 to-emerald-300 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-br from-emerald-400 via-cyan-400 to-emerald-300 bg-clip-text text-transparent pointer-events-none">
               Real-Time
             </span>
           </motion.h1>
@@ -55,7 +55,7 @@ export default function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+            className="text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed pointer-events-none"
           >
             AI-powered transaction analysis that catches suspicious activity in
             milliseconds, not hours.
