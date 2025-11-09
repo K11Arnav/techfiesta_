@@ -27,6 +27,7 @@ export default {
         'dash': 'dash 1s linear infinite',
         'shimmer': 'shimmer 2s linear infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        'grid': 'grid 15s linear infinite',
       },
       keyframes: {
         dash: {
@@ -40,6 +41,10 @@ export default {
         'pulse-glow': {
           '0%, 100%': { 'box-shadow': '0 0 20px -12px rgba(16, 185, 129, 0.3)' },
           '50%': { 'box-shadow': '0 0 40px -12px rgba(16, 185, 129, 0.6)' },
+        },
+        grid: {
+          '0%': { transform: 'translateY(-50%)' },
+          '100%': { transform: 'translateY(0)' },
         },
       },
     },
