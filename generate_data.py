@@ -11,7 +11,9 @@ X_test = ml_pipeline.X_test
 
 # Select 50 random samples or just the first 50
 # Let's take first 50 to be deterministic
-df_sample = X_test.head(50).copy()
+# Select 500 random samples or just the first 500
+# Let's take first 500 to be deterministic
+df_sample = X_test.head(500).copy()
 
 # Convert to records (list of dicts)
 records = df_sample.to_dict(orient="records")
