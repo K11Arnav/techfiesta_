@@ -21,57 +21,48 @@ from sklearn.metrics import classification_report, recall_score
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.ensemble import IsolationForest
 from sklearn.ensemble import IsolationForest
-
 import kagglehub
-# Download dataset from Kaggle Hub
-print("📥 Downloading dataset from Kaggle Hub...")
-path = kagglehub.dataset_download("mlg-ulb/creditcardfraud")
-print(f"✅ Dataset downloaded to: {path}")
-
-# Display available CSVs
 import os
-csv_files = [f for f in os.listdir(path) if f.endswith('.csv')]
-print(f"📁 Available CSV files: {csv_files}")
-
-# Load dataset by specifying the CSV filename manually
-df = pd.read_csv(os.path.join(path, "creditcard.csv"))   # <--- PUT YOUR CSV NAME HERE
-print(f"✅ Dataset loaded successfully!")
-print(f"📊 Shape: {df.shape}")
-df.head()
-
-# 2) CHECK MISSING VALUES
-# ================================
-print("\nMissing Values:\n", df.isnull().sum())
-
-
-
-from sklearn.model_selection import train_test_split, cross_val_predict
-from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import (
-    classification_report,
-    f1_score,
-    roc_auc_score,
     average_precision_score,
     precision_recall_curve
 )
-from xgboost import XGBClassifier
-import numpy as np
+import shap
 
-# ... [Splitting and Scaling code remains the same] ...
-# Split
-X = df.drop('Class', axis=1)
-y = df['Class']
+# =====================================================================
+#                    WRAP ENTIRE PIPELINE IN ONE FUNCTION
+# =====================================================================
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
+def run_full_ml_pipeline():
+    # Download dataset from Kaggle Hub
+    print("📥 Downloading dataset from Kaggle Hub...")
+    path = kagglehub.dataset_download("mlg-ulb/creditcardfraud")
+    print(f"✅ Dataset downloaded to: {path}")
 
-def train_xgb_model(X_train, y_train):
-    """
-    Train XGBoost model on TRAIN data only.
-    """
+    # Display available CSVs
+    csv_files = [f for f in os.listdir(path) if f.endswith('.csv')]
+    print(f"📁 Available CSV files: {csv_files}")
+
+    # Load dataset by specifying the CSV filename manually
+    df = pd.read_csv(os.path.join(path, "creditcard.csv"))
+    print(f"✅ Dataset loaded successfully!")
+    print(f"📊 Shape: {df.shape}")
+    df.head()
+
+    # CHECK MISSING VALUES
+    print("\nMissing Values:\n", df.isnull().sum())
+
+    # Split dataset
+    X = df.drop('Class', axis=1)
+    y = df['Class']
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # TRAIN XGBOOST MODEL
     scaler = StandardScaler()
-
     X_train_scaled = X_train.copy()
     X_train_scaled[['Amount', 'Time']] = scaler.fit_transform(
         X_train[['Amount', 'Time']]
@@ -94,23 +85,19 @@ def train_xgb_model(X_train, y_train):
 
     model.fit(X_train_scaled, y_train)
 
-    return model, scaler
+    # THRESHOLD TUNING
+    X_train_scaled2 = X_train.copy()
+    X_train_scaled2[['Amount', 'Time']] = scaler.transform(
+        X_train[['Amount', 'Time']]
+    )
 
-
-# --- FIX 1: Threshold Tuning on TRAINING Data (via CV) ---
-# We get out-of-fold predictions to tune the threshold without touching the Test set
-def tune_xgb_threshold(model, X_train_scaled, y_train):
-    """
-    Tune decision threshold using CV on TRAIN data only.
-    Logic is IDENTICAL to notebook code.
-    """
     y_train_prob_cv = cross_val_predict(
         model,
-        X_train_scaled,
+        X_train_scaled2,
         y_train,
         cv=3,
         method="predict_proba",
-        n_jobs=-1
+        n_jobs=1
     )[:, 1]
 
     precision, recall, thresholds = precision_recall_curve(
@@ -125,63 +112,60 @@ def tune_xgb_threshold(model, X_train_scaled, y_train):
     best_threshold = thresholds[np.argmax(f1_scores)]
     print(f"Optimal Threshold (tuned on Train): {best_threshold:.4f}")
 
-    return best_threshold
-
-def xgb_risk_score(model, scaler, transaction_df):
-    """
-    Returns XGBoost fraud probability for given transactions.
-    """
-    df = transaction_df.copy()
-
-    # SAME preprocessing as training/eval
-    df[['Amount', 'Time']] = scaler.transform(
-        df[['Amount', 'Time']]
+    # TEST DATA SCALING
+    X_test_scaled = X_test.copy()
+    X_test_scaled[['Amount', 'Time']] = scaler.transform(
+        X_test[['Amount', 'Time']]
     )
 
-    return model.predict_proba(df)[:, 1]
+    y_test_prob = model.predict_proba(X_test_scaled)[:, 1]
+    y_test_pred = (y_test_prob >= best_threshold).astype(int)
 
-# ===== ACTUALLY RUN THE PIPELINE (NO LOGIC CHANGE) =====
+    print("\nClassification Report (Test Data):")
+    print(classification_report(y_test, y_test_pred))
+    print("PR-AUC:", average_precision_score(y_test, y_test_prob))
 
-# Train model
-model, scaler = train_xgb_model(X_train, y_train)
+    # SHAP EXPLAINER
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_test_scaled)
 
-# Scale TRAIN data (needed for threshold tuning)
-X_train_scaled = X_train.copy()
-X_train_scaled[['Amount', 'Time']] = scaler.transform(
-    X_train[['Amount', 'Time']]
-)
+    shap.summary_plot(
+        shap_values,
+        X_test_scaled,
+        plot_type="bar"
+    )
 
-# Tune threshold on TRAIN (validation via CV)
-best_threshold = tune_xgb_threshold(
-    model,
-    X_train_scaled,
-    y_train
-)
+    # Return everything needed
+    return model, scaler, explainer, X_test
 
-# Scale TEST data (needed for evaluation)
-X_test_scaled = X_test.copy()
-X_test_scaled[['Amount', 'Time']] = scaler.transform(
-    X_test[['Amount', 'Time']]
-)
 
-# --- Final Evaluation on Test Set ---
-# Now we apply the threshold derived from Train to the Test set
-y_test_prob = model.predict_proba(X_test_scaled)[:, 1]
-y_test_pred = (y_test_prob >= best_threshold).astype(int)
+# =====================================================================
+#                 ML INFERENCE FUNCTIONS (UNCHANGED)
+# =====================================================================
 
-print("\nClassification Report (Test Data):")
-print(classification_report(y_test, y_test_pred))
-print("PR-AUC:", average_precision_score(y_test, y_test_prob))
+def train_xgb_model(X_train, y_train):
+    scaler = StandardScaler()
+    X_train_scaled = X_train.copy()
+    X_train_scaled[['Amount', 'Time']] = scaler.fit_transform(X_train[['Amount', 'Time']])
+    fraud_ratio = (y_train == 0).sum() / (y_train == 1).sum()
 
-#------ risk score ---------#
+    model = XGBClassifier(
+        max_depth=6,
+        n_estimators=400,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        scale_pos_weight=fraud_ratio,
+        eval_metric='aucpr',
+        tree_method='hist',
+        random_state=42,
+        n_jobs=-1
+    )
+    model.fit(X_train_scaled, y_train)
+    return model, scaler
+
+
 def compute_risk_score(transaction_df, components, weights=None):
-    """
-    Unified fraud risk score.
-    
-    components: dict containing available risk components
-    weights: dict of weights for each component
-    """
-
     if weights is None:
         weights = {
             "xgb": 1.0,
@@ -191,106 +175,41 @@ def compute_risk_score(transaction_df, components, weights=None):
             "rules": 0.0
         }
 
-    scores = {}
-
-    # ---- XGBoost ----
+    # Initialize all channels to zero to avoid missing-key errors
+    scores = {k: 0.0 for k in weights}
     if "xgb" in components:
-        scores["xgb"] = xgb_risk_score(
-            model=components["xgb"]["model"],
-            scaler=components["xgb"]["scaler"],
-            transaction_df=transaction_df
+        # Scale numeric fields the same way as training
+        scaled_df = transaction_df.copy()
+        scaled_df[['Amount', 'Time']] = components["xgb"]["scaler"].transform(
+            transaction_df[['Amount', 'Time']]
         )
+        scores["xgb"] = components["xgb"]["model"].predict_proba(
+            scaled_df
+        )[:, 1]
     else:
         scores["xgb"] = 0.0
 
-    # ---- Future placeholders ----
-    scores["iso"] = 0.0
-    scores["graph"] = 0.0
-    scores["reputation"] = 0.0
-    scores["rules"] = 0.0
-
-    # ---- Weighted aggregation ----
     final_risk = sum(weights[k] * scores[k] for k in weights)
-
     return np.clip(final_risk, 0, 1)
 
 
-
-
-
-
-#-------------- SHAP Explanation  -----------------------------------#
-
-import shap
-
-explainer = shap.TreeExplainer(model)
-
-shap_values = explainer.shap_values(X_test_scaled)
-
-shap.summary_plot(
-    shap_values,
-    X_test_scaled,
-    plot_type="bar"
-)
-
-#shap.summary_plot(
- #   shap_values,
-#    X_test_scaled
-#)
-
-def shap_explain_transaction(
-    model,
-    scaler,
-    explainer,
-    transaction_df,
-    top_k=5
-):
-    """
-    Generate SHAP explanation for a single transaction.
-
-    Parameters
-    ----------
-    model : trained XGBoost model
-    scaler : trained StandardScaler
-    explainer : shap.TreeExplainer
-    transaction_df : pd.DataFrame (single-row, unscaled)
-    top_k : int (number of top contributing features)
-
-    Returns
-    -------
-    List[Dict]: top-k SHAP feature contributions
-    """
-
-    # --- Scale exactly like inference ---
+def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
     txn_scaled = transaction_df.copy()
-    txn_scaled[['Amount', 'Time']] = scaler.transform(
-        txn_scaled[['Amount', 'Time']]
-    )
+    txn_scaled[['Amount', 'Time']] = scaler.transform(txn_scaled[['Amount', 'Time']])
 
-    # --- Compute SHAP values (single transaction) ---
     shap_values = explainer.shap_values(txn_scaled)[0]
 
-    # --- Build explanation table ---
     shap_df = pd.DataFrame({
         "feature": txn_scaled.columns,
         "shap_value": shap_values
     })
 
     shap_df["abs_shap"] = shap_df["shap_value"].abs()
+    shap_df = shap_df.sort_values("abs_shap", ascending=False).head(top_k)
 
-    shap_df = shap_df.sort_values(
-        "abs_shap", ascending=False
-    ).head(top_k)
-
-    # --- Convert to JSON-friendly format ---
     explanation = [
-        {
-            "feature": row.feature,
-            "impact": float(row.shap_value)
-        }
+        {"feature": row.feature, "impact": float(row.shap_value)}
         for row in shap_df.itertuples()
     ]
 
     return explanation
-
-
