@@ -213,3 +213,4 @@ def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
     ]
 
     return explanation
+

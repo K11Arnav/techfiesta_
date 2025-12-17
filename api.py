@@ -156,7 +156,8 @@ def score_transaction(transaction: Transaction):
         )
 
         # Generate transaction ID
-        txn_id = f"txn_{np.random.randint(1000000)}"
+        from uuid import uuid4
+        txn_id = f"txn_{uuid4().hex}"
 
         # Insert into raw table
         execute_query("""
