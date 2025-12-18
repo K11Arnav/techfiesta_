@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { Check, ArrowRight, ShieldCheck, Loader2, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Suggestion {
@@ -20,6 +20,7 @@ export default function RuleApprovalSection() {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [loading, setLoading] = useState(true);
     const [applying, setApplying] = useState(false);
+    const [optimizing, setOptimizing] = useState(false);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
     useEffect(() => {
@@ -74,6 +75,26 @@ export default function RuleApprovalSection() {
         }
     };
 
+    const handleRunOptimizer = async () => {
+        setOptimizing(true);
+        setSuccessMsg(null);
+        try {
+            const res = await fetch("http://localhost:8000/run_optimizer", {
+                method: "POST",
+            });
+
+            if (!res.ok) throw new Error("Failed to run optimizer");
+
+            const data = await res.json();
+            setSuccessMsg(data.message || "Optimizer completed! Check for new suggestions.");
+        } catch (err) {
+            console.error(err);
+            alert("Error running optimizer. Check console.");
+        } finally {
+            setOptimizing(false);
+        }
+    };
+
     return (
         <section id="admin-panel" className="py-24 bg-zinc-900/50 border-t border-zinc-800">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -117,9 +138,26 @@ export default function RuleApprovalSection() {
                         <h3 className="text-xl font-semibold text-zinc-300">
                             No Pending Suggestions
                         </h3>
-                        <p className="text-zinc-500 mt-2">
-                            The rule engine is currently optimized. Run the optimizer script to generate new recommendations.
+                        <p className="text-zinc-500 mt-2 mb-6">
+                            The rule engine is currently optimized. Run the optimizer to generate new recommendations based on recent flagged transactions.
                         </p>
+                        <button
+                            onClick={handleRunOptimizer}
+                            disabled={optimizing}
+                            className="flex items-center gap-2 px-6 py-3 mx-auto bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-violet-900/20 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02]"
+                        >
+                            {optimizing ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    Running AI Optimizer...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="w-5 h-5" />
+                                    Run AI Optimizer
+                                </>
+                            )}
+                        </button>
                     </div>
                 ) : (
                     <div className="max-w-4xl mx-auto space-y-6">

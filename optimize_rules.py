@@ -116,13 +116,15 @@ def run_optimization():
     Return ONLY valid JSON.
     """
     
-    # 4. Call LLM
-    client = OpenAI(
-        base_url=LLM_BASE_URL,
-        api_key=LLM_API_KEY
-    )
+    # 4. Call LLM (with Ollama fallback)
+    response_text = None
     
+    # Try primary LLM first
     try:
+        client = OpenAI(
+            base_url=LLM_BASE_URL,
+            api_key=LLM_API_KEY
+        )
         completion = client.chat.completions.create(
             model=LLM_MODEL,
             messages=[
@@ -130,43 +132,67 @@ def run_optimization():
                 {"role": "user", "content": prompt}
             ]
         )
-        
         response_text = completion.choices[0].message.content
-        print(f"🧠 LLM Response: {response_text}")
-        
-        # Parse JSON (naive parsing, could be improved)
-        # Attempt to find JSON start/end if there is extra text
-        try:
-            start = response_text.find('{')
-            end = response_text.rfind('}') + 1
-            json_str = response_text[start:end]
-            suggestion_data = json.loads(json_str)
-        except:
-             print("Failed to parse LLM JSON")
-             return
-
-        # 5. append to Suggestions File
-        if 'suggestions' in suggestion_data and suggestion_data['suggestions']:
-            # Load existing
-            try:
-                with open(SUGGESTIONS_PATH, 'r') as f:
-                    existing = json.load(f)
-            except:
-                existing = []
-                
-            # Append new
-            existing.extend(suggestion_data['suggestions'])
-            
-            # Save
-            with open(SUGGESTIONS_PATH, 'w') as f:
-                json.dump(existing, f, indent=2)
-                
-            print(f"✅ Saved {len(suggestion_data['suggestions'])} new suggestions to {SUGGESTIONS_PATH}")
-        else:
-            print("No changes suggested by LLM.")
-            
+        print(f"🧠 Primary LLM Response received")
     except Exception as e:
-        print(f"❌ LLM Call Failed: {e}")
+        print(f"⚠️ Primary LLM failed: {e}")
+        print("🔄 Falling back to Ollama...")
+        
+        # Fallback to Ollama
+        try:
+            ollama_client = OpenAI(
+                base_url="http://localhost:11434/v1",
+                api_key="ollama"  # Ollama doesn't need a real key
+            )
+            completion = ollama_client.chat.completions.create(
+                model="qwen2.5:3b",  # or whatever model you have in Ollama
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that outputs JSON only."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            response_text = completion.choices[0].message.content
+            print(f"🧠 Ollama Response received")
+        except Exception as ollama_error:
+            print(f"❌ Ollama also failed: {ollama_error}")
+            return
+    
+    if not response_text:
+        print("❌ No response from any LLM")
+        return
+        
+    print(f"🧠 LLM Response: {response_text}")
+    
+    # Parse JSON (naive parsing, could be improved)
+    # Attempt to find JSON start/end if there is extra text
+    try:
+        start = response_text.find('{')
+        end = response_text.rfind('}') + 1
+        json_str = response_text[start:end]
+        suggestion_data = json.loads(json_str)
+    except:
+         print("Failed to parse LLM JSON")
+         return
+
+    # 5. append to Suggestions File
+    if 'suggestions' in suggestion_data and suggestion_data['suggestions']:
+        # Load existing
+        try:
+            with open(SUGGESTIONS_PATH, 'r') as f:
+                existing = json.load(f)
+        except:
+            existing = []
+            
+        # Append new
+        existing.extend(suggestion_data['suggestions'])
+        
+        # Save
+        with open(SUGGESTIONS_PATH, 'w') as f:
+            json.dump(existing, f, indent=2)
+            
+        print(f"✅ Saved {len(suggestion_data['suggestions'])} new suggestions to {SUGGESTIONS_PATH}")
+    else:
+        print("No changes suggested by LLM.")
 
 if __name__ == "__main__":
     run_optimization()

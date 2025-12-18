@@ -40,6 +40,11 @@ MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
 EXPLAINER_PATH = "explainer.pkl"
 
+
+
+ISO_MODEL_PATH = "iso_forest_model.pkl"
+ISO_SCALER_PATH = "iso_scaler.pkl"
+ISO_META_PATH = "iso_metadata.pkl"
 # Initialize Rule Engine
 RULE_ENGINE = RuleEngine()
 
@@ -52,20 +57,38 @@ def load_or_train_artifacts():
         model = joblib.load(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
         explainer = joblib.load(EXPLAINER_PATH)
+
+        iso_model = joblib.load(ISO_MODEL_PATH)
+        iso_scaler = joblib.load(ISO_SCALER_PATH)
+        iso_meta = joblib.load(ISO_META_PATH)
+
         print("Loaded existing model artifacts.")
-        return model, scaler, explainer
+        return model, scaler, explainer, iso_model, iso_scaler, iso_meta
 
     except FileNotFoundError:
         print("Artifacts not found; training pipeline will run.")
-        model, scaler, explainer, _ = ml_pipeline.run_full_ml_pipeline()
+        model, scaler, explainer, _, iso_components = ml_pipeline.run_full_ml_pipeline()
+
         joblib.dump(model, MODEL_PATH)
         joblib.dump(scaler, SCALER_PATH)
         joblib.dump(explainer, EXPLAINER_PATH)
-        print("Training complete and artifacts saved.")
-        return model, scaler, explainer
+
+        return (
+            model,
+            scaler,
+            explainer,
+            iso_components["model"],
+            iso_components["scaler"],
+            {
+                "score_min": iso_components["score_min"],
+                "score_max": iso_components["score_max"],
+            }
+        )
 
 
-MODEL, SCALER, EXPLAINER = load_or_train_artifacts()
+
+MODEL, SCALER, EXPLAINER, ISO_MODEL, ISO_SCALER, ISO_META = load_or_train_artifacts()
+
 
 
 # --------------------------------------
@@ -154,7 +177,8 @@ def score_transaction(transaction: Transaction):
         # Components passed to compute_risk_score
         components = {
             "xgb": {"model": MODEL, "scaler": SCALER},
-            "iso": {},
+            "iso": {"model": ISO_MODEL , "scaler": ISO_SCALER, "score_min" : ISO_META["score_min"]
+            , "score_max": ISO_META["score_max"]},
             "graph": {},
             "reputation": {},
             "rules": {}
@@ -172,17 +196,26 @@ def score_transaction(transaction: Transaction):
         rule_score, rule_details = RULE_ENGINE.evaluate(data, last_txn_time)
 
         # 3. ML Models
-        ml_score = float(
-             ml_pipeline.compute_risk_score(
-                transaction_df=df,
-                components=components
-            )
+        ml_score = ml_pipeline.compute_risk_score(
+            transaction_df=df,
+             components=components,
+            weights={"xgb": 1.0, "iso": 1.0}  # TEMP, see Change 2
         )
+
+        xgb_score = float(ml_score["xgb"])
+        iso_score = float(ml_score["iso"])
+
         
         # 4. Combine Scores (Simple Weighted Avg for now)
         # You can tune this blend. 
         # ML is powerful, but Rules are precise constraints.
-        final_risk = (0.8 * ml_score) + (0.2 * rule_score)
+        final_risk = (
+            0.6 * xgb_score +
+            0.2 * iso_score +
+            0.2 * rule_score
+        )
+
+       
         
         # Clip to [0, 1]
         risk_score = min(max(final_risk, 0.0), 1.0)
@@ -250,9 +283,9 @@ def score_transaction(transaction: Transaction):
             "txn_id": txn_id,
             "risk_score": risk_score,
             "decision": decision,
-            "txn_id": txn_id,
-            "risk_score": risk_score,
-            "decision": decision,
+            #"txn_id": txn_id,
+            #"risk_score": risk_score,
+           # "decision": decision,
             "explanation": explanation,
             "rule_details": rule_details
         }
@@ -330,6 +363,18 @@ def apply_rules(approved_list: List[ApprovedSuggestion]):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------
+# RUN OPTIMIZER
+# --------------------------------------
+from optimize_rules import run_optimization
+
+@app.post("/run_optimizer")
+def run_optimizer():
+    run_optimization()
+    return {"status": "success"}
+
 
 
 # --------------------------------------

@@ -40,6 +40,7 @@ export default function DashboardPreview() {
   const streamRef = useRef<NodeJS.Timeout | null>(null)
   const indexRef = useRef(0)
   const isProcessingRef = useRef(false)
+  const isStreamingRef = useRef(false)
 
   // Cleanup on unmount
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function DashboardPreview() {
 
   // Auto-play logic
   useEffect(() => {
+    isStreamingRef.current = isStreaming
     if (isStreaming) {
       streamRef.current = setInterval(() => {
         processNextTransaction()
@@ -66,7 +68,8 @@ export default function DashboardPreview() {
 
 
   const processNextTransaction = async () => {
-    if (!isStreaming || isProcessingRef.current) return
+    // Use ref to check live streaming state (avoids stale closure)
+    if (!isStreamingRef.current || isProcessingRef.current) return
 
     if (indexRef.current >= testTransactions.length) {
       if (streamRef.current) {
