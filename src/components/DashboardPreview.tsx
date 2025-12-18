@@ -97,7 +97,7 @@ export default function DashboardPreview() {
       // Logic: Fraud if risk > 0.8
       let status: 'verified' | 'flagged' | 'high_risk' = 'verified'
       if (result.risk_score >= 0.8) status = 'high_risk'
-      else if (result.risk_score >= 0.1) status = 'flagged'
+      else if (result.risk_score >= 0.6) status = 'flagged'
 
       // Update stats
       setStats(prev => ({
@@ -231,7 +231,7 @@ export default function DashboardPreview() {
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {/* Status Card */}
                     <div className={`p-6 rounded-2xl border ${currentResult.risk_score >= 0.8 ? 'bg-rose-500/10 border-rose-500/30' :
-                      currentResult.risk_score >= 0.1 ? 'bg-amber-500/10 border-amber-500/30' :
+                      currentResult.risk_score >= 0.6 ? 'bg-amber-500/10 border-amber-500/30' :
                         'bg-emerald-500/10 border-emerald-500/30'
                       }`}>
                       <div className="flex justify-between items-start mb-4">
@@ -239,7 +239,7 @@ export default function DashboardPreview() {
                           Transaction #{currentIndex}
                         </span>
                         {currentResult.risk_score >= 0.8 ? <ShieldAlert className="w-6 h-6 text-rose-500" /> :
-                          currentResult.risk_score >= 0.5 ? <AlertTriangle className="w-6 h-6 text-amber-500" /> :
+                          currentResult.risk_score >= 0.6 ? <AlertTriangle className="w-6 h-6 text-amber-500" /> :
                             <ShieldCheck className="w-6 h-6 text-emerald-500" />}
                       </div>
 
@@ -251,11 +251,11 @@ export default function DashboardPreview() {
                       </div>
 
                       <div className={`text-sm font-medium ${currentResult.risk_score >= 0.8 ? 'text-rose-400' :
-                        currentResult.risk_score >= 0.5 ? 'text-amber-400' :
+                        currentResult.risk_score >= 0.6 ? 'text-amber-400' :
                           'text-emerald-400'
                         }`}>
                         {currentResult.risk_score >= 0.8 ? 'CRITICAL THREAT DETECTED' :
-                          currentResult.risk_score >= 0.5 ? 'Suspicious Activity' :
+                          currentResult.risk_score >= 0.6 ? 'Suspicious Activity' :
                             'Transaction Verified Safe'}
                       </div>
                     </div>

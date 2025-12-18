@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List, Any
 import pandas as pd
 import numpy as np
 import json
@@ -33,10 +34,14 @@ def execute_query(query, params=None):
 # IMPORT ML PIPELINE (for functions)
 # --------------------------------------
 import financial_transaction_fraud_detection as ml_pipeline
+from fraud_rules import RuleEngine
 
 MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
 EXPLAINER_PATH = "explainer.pkl"
+
+# Initialize Rule Engine
+RULE_ENGINE = RuleEngine()
 
 
 # --------------------------------------
@@ -115,6 +120,23 @@ class Transaction(BaseModel):
     V28: float
 
 
+
+# --------------------------------------
+# HELPER: GET LAST TRANSACTION TIME
+# --------------------------------------
+def get_user_last_txn_time(user_id):
+    """Fetches the timestamp of the last transaction for the user."""
+    res = execute_query("""
+        SELECT timestamp FROM fraud.transactions_raw
+        WHERE user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """, (user_id,))
+    
+    if res and res[0]['timestamp']:
+        return res[0]['timestamp'].timestamp() # Return as float timestamp
+    return None
+
 # --------------------------------------
 # SCORE TRANSACTION
 # --------------------------------------
@@ -139,12 +161,31 @@ def score_transaction(transaction: Transaction):
         }
 
         # Compute unified risk score
-        risk_score = float(
-            ml_pipeline.compute_risk_score(
+        
+        # 1. Get history for Rules
+        # In a real app, user_id would come from the request. 
+        # Hardcoding 'user_demo' as per existing insert logic for now.
+        user_id = "user_demo" 
+        last_txn_time = get_user_last_txn_time(user_id)
+
+        # 2. Evaluate Rules (Dynamic)
+        rule_score, rule_details = RULE_ENGINE.evaluate(data, last_txn_time)
+
+        # 3. ML Models
+        ml_score = float(
+             ml_pipeline.compute_risk_score(
                 transaction_df=df,
                 components=components
             )
         )
+        
+        # 4. Combine Scores (Simple Weighted Avg for now)
+        # You can tune this blend. 
+        # ML is powerful, but Rules are precise constraints.
+        final_risk = (0.8 * ml_score) + (0.2 * rule_score)
+        
+        # Clip to [0, 1]
+        risk_score = min(max(final_risk, 0.0), 1.0)
 
         # SHAP explanation
         explanation = ml_pipeline.shap_explain_transaction(
@@ -209,7 +250,11 @@ def score_transaction(transaction: Transaction):
             "txn_id": txn_id,
             "risk_score": risk_score,
             "decision": decision,
-            "explanation": explanation
+            "txn_id": txn_id,
+            "risk_score": risk_score,
+            "decision": decision,
+            "explanation": explanation,
+            "rule_details": rule_details
         }
 
     except Exception as e:
@@ -234,6 +279,57 @@ def get_decisions():
         SELECT * FROM fraud.decisions
         ORDER BY decision_time DESC
     """)
+
+
+# --------------------------------------
+# ADMIN / RULE MANAGEMENT
+# --------------------------------------
+@app.get("/suggestions")
+def get_suggestions():
+    try:
+        if not os.path.exists("suggestions.json"):
+            return []
+        with open("suggestions.json", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        return []
+
+class ApprovedSuggestion(BaseModel):
+    target_rule: str
+    parameter: str
+    proposed_value: Any
+
+@app.post("/apply_rules")
+def apply_rules(approved_list: List[ApprovedSuggestion]):
+    try:
+        # 1. Load current rules
+        with open("fraud_rules.json", "r") as f:
+            rules = json.load(f)
+        
+        # 2. Apply updates
+        changes_applied = 0
+        for item in approved_list:
+            if item.target_rule in rules:
+                if item.parameter in rules[item.target_rule]:
+                    rules[item.target_rule][item.parameter] = item.proposed_value
+                    changes_applied += 1
+        
+        # 3. Save back to file
+        with open("fraud_rules.json", "w") as f:
+            json.dump(rules, f, indent=2)
+            
+        # 4. Reload Engine
+        RULE_ENGINE.reload_config()
+        
+        # 5. Clear suggestions (assuming recognized API workflow: approve -> clear)
+        # Or we could only remove applied ones, but clearing all for a clean slate is safer for this demo.
+        with open("suggestions.json", "w") as f:
+            json.dump([], f)
+            
+        return {"status": "success", "message": f"Applied {changes_applied} rule changes and reloaded engine."}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --------------------------------------

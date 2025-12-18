@@ -1,0 +1,29 @@
+{
+  "velocity": {
+    "enabled": true,
+    "time_window_sec": 3,
+    "weight": 2
+  },
+  "high_risk_pca": {
+    "enabled": true,
+    "threshold_quantile": 0.9,
+    "default_threshold": 3.0,
+    "weight": 1.5,
+    "components": [
+      "V4",
+      "V10",
+      "V12",
+      "V14"
+    ]
+  },
+  "amount_anomaly": {
+    "enabled": true,
+    "small_threshold": 20,
+    "large_threshold": 800,
+    "weight": 1.0
+  },
+  "combo_pattern": {
+    "enabled": true,
+    "weight": 3.0
+  }
+}
