@@ -1,0 +1,30 @@
+[
+  {
+    "target_rule": "velocity",
+    "parameter": "time_window_sec",
+    "current_value": 2,
+    "proposed_value": 2,
+    "reasoning": "High block rate (> 50%), tightening velocity check to prevent false positives."
+  },
+  {
+    "target_rule": "high_risk_pca",
+    "parameter": "default_threshold",
+    "current_value": 2.5,
+    "proposed_value": 1.5,
+    "reasoning": "Large variation in blocked transactions (99-100%), tighten threshold for more precise detection."
+  },
+  {
+    "target_rule": "amount_anomaly",
+    "parameter": "small_threshold",
+    "current_value": 10,
+    "proposed_value": 20,
+    "reasoning": "Low block rate (< 20%), loosening threshold to reduce false positives."
+  },
+  {
+    "target_rule": "amount_anomaly",
+    "parameter": "large_threshold",
+    "current_value": 200,
+    "proposed_value": 250,
+    "reasoning": "Block rate is high (80%), tightening threshold to prevent false positives."
+  }
+]

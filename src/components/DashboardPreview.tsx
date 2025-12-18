@@ -38,6 +38,9 @@ export default function DashboardPreview() {
   })
 
   const streamRef = useRef<NodeJS.Timeout | null>(null)
+  const indexRef = useRef(0)
+  const isProcessingRef = useRef(false)
+  const isStreamingRef = useRef(false)
 
   // Cleanup on unmount
   useEffect(() => {
@@ -48,24 +51,39 @@ export default function DashboardPreview() {
 
   // Auto-play logic
   useEffect(() => {
+    isStreamingRef.current = isStreaming
     if (isStreaming) {
-      streamRef.current = setInterval(processNextTransaction, 1000) // 1 sec delay
-    } else {
-      if (streamRef.current) clearInterval(streamRef.current)
+      streamRef.current = setInterval(() => {
+        processNextTransaction()
+      }, 1000)
     }
+
     return () => {
-      if (streamRef.current) clearInterval(streamRef.current)
+      if (streamRef.current) {
+        clearInterval(streamRef.current)
+        streamRef.current = null
+      }
     }
-  }, [isStreaming, currentIndex])
+  }, [isStreaming])
+
 
   const processNextTransaction = async () => {
-    if (currentIndex >= testTransactions.length) {
+    // Use ref to check live streaming state (avoids stale closure)
+    if (!isStreamingRef.current || isProcessingRef.current) return
+
+    if (indexRef.current >= testTransactions.length) {
+      if (streamRef.current) {
+        clearInterval(streamRef.current)
+        streamRef.current = null
+      }
       setIsStreaming(false)
       alert("End of test stream!")
       return
     }
 
-    const txn = testTransactions[currentIndex]
+    isProcessingRef.current = true
+
+    const txn = testTransactions[indexRef.current]
 
     try {
       const response = await fetch('http://localhost:8000/score_transaction', {
@@ -82,7 +100,7 @@ export default function DashboardPreview() {
       // Logic: Fraud if risk > 0.8
       let status: 'verified' | 'flagged' | 'high_risk' = 'verified'
       if (result.risk_score >= 0.8) status = 'high_risk'
-      else if (result.risk_score >= 0.5) status = 'flagged'
+      else if (result.risk_score >= 0.6) status = 'flagged'
 
       // Update stats
       setStats(prev => ({
@@ -92,9 +110,9 @@ export default function DashboardPreview() {
       }))
 
       // If High Risk, add to Alerts
-      if (status === 'high_risk') {
+      if (status === 'high_risk' || status == 'flagged') {
         const newAlert: TransactionRecord = {
-          id: currentIndex + 1,
+          id: indexRef.current + 1,
           amount: txn.Amount,
           time: txn.Time,
           risk_score: result.risk_score,
@@ -104,11 +122,14 @@ export default function DashboardPreview() {
         setAlerts(prev => [newAlert, ...prev])
       }
 
-      setCurrentIndex(prev => prev + 1)
+      indexRef.current += 1
+      setCurrentIndex(indexRef.current)
 
     } catch (error) {
       console.error("Stream error:", error)
       setIsStreaming(false)
+    } finally {
+      isProcessingRef.current = false
     }
   }
 
@@ -156,10 +177,19 @@ export default function DashboardPreview() {
             <div className="bg-zinc-800/50 px-6 py-4 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-6">
                 <button
-                  onClick={() => setIsStreaming(!isStreaming)}
+                  onClick={() => {
+                    if (indexRef.current >= testTransactions.length) {
+                      indexRef.current = 0
+                      setCurrentIndex(0)
+                      setStats({ processed: 0, flagged: 0, verified: 0 })
+                      setAlerts([])
+                      setCurrentResult(null)
+                    }
+                    setIsStreaming(!isStreaming)
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isStreaming
-                      ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20'
-                      : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20'
+                    ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20'
                     }`}
                 >
                   {isStreaming ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
@@ -204,15 +234,15 @@ export default function DashboardPreview() {
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {/* Status Card */}
                     <div className={`p-6 rounded-2xl border ${currentResult.risk_score >= 0.8 ? 'bg-rose-500/10 border-rose-500/30' :
-                        currentResult.risk_score >= 0.5 ? 'bg-amber-500/10 border-amber-500/30' :
-                          'bg-emerald-500/10 border-emerald-500/30'
+                      currentResult.risk_score >= 0.6 ? 'bg-amber-500/10 border-amber-500/30' :
+                        'bg-emerald-500/10 border-emerald-500/30'
                       }`}>
                       <div className="flex justify-between items-start mb-4">
                         <span className="text-xs uppercase tracking-wider font-semibold opacity-70">
                           Transaction #{currentIndex}
                         </span>
                         {currentResult.risk_score >= 0.8 ? <ShieldAlert className="w-6 h-6 text-rose-500" /> :
-                          currentResult.risk_score >= 0.5 ? <AlertTriangle className="w-6 h-6 text-amber-500" /> :
+                          currentResult.risk_score >= 0.6 ? <AlertTriangle className="w-6 h-6 text-amber-500" /> :
                             <ShieldCheck className="w-6 h-6 text-emerald-500" />}
                       </div>
 
@@ -224,11 +254,11 @@ export default function DashboardPreview() {
                       </div>
 
                       <div className={`text-sm font-medium ${currentResult.risk_score >= 0.8 ? 'text-rose-400' :
-                          currentResult.risk_score >= 0.5 ? 'text-amber-400' :
-                            'text-emerald-400'
+                        currentResult.risk_score >= 0.6 ? 'text-amber-400' :
+                          'text-emerald-400'
                         }`}>
                         {currentResult.risk_score >= 0.8 ? 'CRITICAL THREAT DETECTED' :
-                          currentResult.risk_score >= 0.5 ? 'Suspicious Activity' :
+                          currentResult.risk_score >= 0.6 ? 'Suspicious Activity' :
                             'Transaction Verified Safe'}
                       </div>
                     </div>

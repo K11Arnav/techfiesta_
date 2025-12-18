@@ -190,7 +190,11 @@ def compute_risk_score(transaction_df, components, weights=None):
         scores["xgb"] = 0.0
 
     final_risk = sum(weights[k] * scores[k] for k in weights)
-    return np.clip(final_risk, 0, 1)
+    return  {
+    "xgb": float(scores.get("xgb", 0.0)),
+    "iso": float(scores.get("iso", 0.0)),
+    "final": float(np.clip(final_risk, 0.0, 1.0))
+}
 
 
 def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
@@ -213,3 +217,4 @@ def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
     ]
 
     return explanation
+

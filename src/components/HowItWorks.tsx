@@ -43,7 +43,7 @@ export default function HowItWorks() {
 
         <div className="relative">
           {/* Connecting Lines - Desktop Only */}
-          <div className="hidden lg:block absolute top-12 left-1/4 right-1/4 h-0.5 border-t-2 border-dashed border-zinc-800 animate-dash"></div>
+          <div className="hidden lg:block absolute top-8 left-[16%] right-[16%] h-0.5 border-t-2 border-dashed border-zinc-800 animate-dash"></div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16">
             {steps.map((step, index) => (

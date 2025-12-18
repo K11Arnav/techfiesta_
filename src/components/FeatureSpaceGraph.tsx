@@ -85,7 +85,7 @@ function riskToOpacity(score: number): number {
 
 // Check if point needs glow effect
 function needsGlow(score: number, decision: string): boolean {
-  return score >= 0.7 || decision === "BLOCK";
+  return score >= 0.8 || decision === "BLOCK";
 }
 
 function decisionStroke(decision: string, isTopRisk: boolean): string {
@@ -276,7 +276,7 @@ export default function FeatureSpaceGraph() {
 
   // Count high-risk transactions for stats
   const stats = useMemo(() => {
-    const highRisk = points.filter(p => p.risk_score >= 0.7).length;
+    const highRisk = points.filter(p => p.risk_score >= 0.8).length;
     const blocked = points.filter(p => p.decision === "BLOCK").length;
     const review = points.filter(p => p.decision === "REVIEW").length;
     return { highRisk, blocked, review };
@@ -581,7 +581,7 @@ export default function FeatureSpaceGraph() {
                       style={{ color: riskToColor(hovered.risk_score) }}
                     >
                       {hovered.risk_score.toFixed(4)}
-                      {hovered.risk_score >= 0.7 && " ⚠️"}
+                      {hovered.risk_score >= 0.8 && " ⚠️"}
                     </div>
                   </div>
                   <div>

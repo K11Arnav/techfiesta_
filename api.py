@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List, Any
 import pandas as pd
 import numpy as np
 import json
@@ -33,10 +34,19 @@ def execute_query(query, params=None):
 # IMPORT ML PIPELINE (for functions)
 # --------------------------------------
 import financial_transaction_fraud_detection as ml_pipeline
+from fraud_rules import RuleEngine
 
 MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
 EXPLAINER_PATH = "explainer.pkl"
+
+
+
+ISO_MODEL_PATH = "iso_forest_model.pkl"
+ISO_SCALER_PATH = "iso_scaler.pkl"
+ISO_META_PATH = "iso_metadata.pkl"
+# Initialize Rule Engine
+RULE_ENGINE = RuleEngine()
 
 
 # --------------------------------------
@@ -47,20 +57,38 @@ def load_or_train_artifacts():
         model = joblib.load(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
         explainer = joblib.load(EXPLAINER_PATH)
+
+        iso_model = joblib.load(ISO_MODEL_PATH)
+        iso_scaler = joblib.load(ISO_SCALER_PATH)
+        iso_meta = joblib.load(ISO_META_PATH)
+
         print("Loaded existing model artifacts.")
-        return model, scaler, explainer
+        return model, scaler, explainer, iso_model, iso_scaler, iso_meta
 
     except FileNotFoundError:
         print("Artifacts not found; training pipeline will run.")
-        model, scaler, explainer, _ = ml_pipeline.run_full_ml_pipeline()
+        model, scaler, explainer, _, iso_components = ml_pipeline.run_full_ml_pipeline()
+
         joblib.dump(model, MODEL_PATH)
         joblib.dump(scaler, SCALER_PATH)
         joblib.dump(explainer, EXPLAINER_PATH)
-        print("Training complete and artifacts saved.")
-        return model, scaler, explainer
+
+        return (
+            model,
+            scaler,
+            explainer,
+            iso_components["model"],
+            iso_components["scaler"],
+            {
+                "score_min": iso_components["score_min"],
+                "score_max": iso_components["score_max"],
+            }
+        )
 
 
-MODEL, SCALER, EXPLAINER = load_or_train_artifacts()
+
+MODEL, SCALER, EXPLAINER, ISO_MODEL, ISO_SCALER, ISO_META = load_or_train_artifacts()
+
 
 
 # --------------------------------------
@@ -115,6 +143,23 @@ class Transaction(BaseModel):
     V28: float
 
 
+
+# --------------------------------------
+# HELPER: GET LAST TRANSACTION TIME
+# --------------------------------------
+def get_user_last_txn_time(user_id):
+    """Fetches the timestamp of the last transaction for the user."""
+    res = execute_query("""
+        SELECT timestamp FROM fraud.transactions_raw
+        WHERE user_id = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """, (user_id,))
+    
+    if res and res[0]['timestamp']:
+        return res[0]['timestamp'].timestamp() # Return as float timestamp
+    return None
+
 # --------------------------------------
 # SCORE TRANSACTION
 # --------------------------------------
@@ -132,19 +177,48 @@ def score_transaction(transaction: Transaction):
         # Components passed to compute_risk_score
         components = {
             "xgb": {"model": MODEL, "scaler": SCALER},
-            "iso": {},
+            "iso": {"model": ISO_MODEL , "scaler": ISO_SCALER, "score_min" : ISO_META["score_min"]
+            , "score_max": ISO_META["score_max"]},
             "graph": {},
             "reputation": {},
             "rules": {}
         }
 
         # Compute unified risk score
-        risk_score = float(
-            ml_pipeline.compute_risk_score(
-                transaction_df=df,
-                components=components
-            )
+        
+        # 1. Get history for Rules
+        # In a real app, user_id would come from the request. 
+        # Hardcoding 'user_demo' as per existing insert logic for now.
+        user_id = "user_demo" 
+        last_txn_time = get_user_last_txn_time(user_id)
+
+        # 2. Evaluate Rules (Dynamic)
+        rule_score, rule_details = RULE_ENGINE.evaluate(data, last_txn_time)
+
+        # 3. ML Models
+        ml_score = ml_pipeline.compute_risk_score(
+            transaction_df=df,
+             components=components,
+            weights={"xgb": 1.0, "iso": 1.0}  # TEMP, see Change 2
         )
+
+        xgb_score = float(ml_score["xgb"])
+        iso_score = float(ml_score["iso"])
+
+        
+        # 4. Combine Scores (Simple Weighted Avg for now)
+        # You can tune this blend. 
+        # ML is powerful, but Rules are precise constraints.
+        final_risk = (
+            0.6 * xgb_score +
+            0.2 * iso_score +
+            0.2 * rule_score
+        )
+
+       
+        
+        # Clip to [0, 1]
+        risk_score = min(max(final_risk, 0.0), 1.0)
 
         # SHAP explanation
         explanation = ml_pipeline.shap_explain_transaction(
@@ -156,7 +230,8 @@ def score_transaction(transaction: Transaction):
         )
 
         # Generate transaction ID
-        txn_id = f"txn_{np.random.randint(1000000)}"
+        from uuid import uuid4
+        txn_id = f"txn_{uuid4().hex}"
 
         # Insert into raw table
         execute_query("""
@@ -208,7 +283,11 @@ def score_transaction(transaction: Transaction):
             "txn_id": txn_id,
             "risk_score": risk_score,
             "decision": decision,
-            "explanation": explanation
+            #"txn_id": txn_id,
+            #"risk_score": risk_score,
+           # "decision": decision,
+            "explanation": explanation,
+            "rule_details": rule_details
         }
 
     except Exception as e:
@@ -233,6 +312,69 @@ def get_decisions():
         SELECT * FROM fraud.decisions
         ORDER BY decision_time DESC
     """)
+
+
+# --------------------------------------
+# ADMIN / RULE MANAGEMENT
+# --------------------------------------
+@app.get("/suggestions")
+def get_suggestions():
+    try:
+        if not os.path.exists("suggestions.json"):
+            return []
+        with open("suggestions.json", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        return []
+
+class ApprovedSuggestion(BaseModel):
+    target_rule: str
+    parameter: str
+    proposed_value: Any
+
+@app.post("/apply_rules")
+def apply_rules(approved_list: List[ApprovedSuggestion]):
+    try:
+        # 1. Load current rules
+        with open("fraud_rules.json", "r") as f:
+            rules = json.load(f)
+        
+        # 2. Apply updates
+        changes_applied = 0
+        for item in approved_list:
+            if item.target_rule in rules:
+                if item.parameter in rules[item.target_rule]:
+                    rules[item.target_rule][item.parameter] = item.proposed_value
+                    changes_applied += 1
+        
+        # 3. Save back to file
+        with open("fraud_rules.json", "w") as f:
+            json.dump(rules, f, indent=2)
+            
+        # 4. Reload Engine
+        RULE_ENGINE.reload_config()
+        
+        # 5. Clear suggestions (assuming recognized API workflow: approve -> clear)
+        # Or we could only remove applied ones, but clearing all for a clean slate is safer for this demo.
+        with open("suggestions.json", "w") as f:
+            json.dump([], f)
+            
+        return {"status": "success", "message": f"Applied {changes_applied} rule changes and reloaded engine."}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --------------------------------------
+# RUN OPTIMIZER
+# --------------------------------------
+from optimize_rules import run_optimization
+
+@app.post("/run_optimizer")
+def run_optimizer():
+    run_optimization()
+    return {"status": "success"}
+
 
 
 # --------------------------------------

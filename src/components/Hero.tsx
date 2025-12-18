@@ -1,6 +1,7 @@
 import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 interface Transaction {
   id: number
@@ -19,6 +20,7 @@ const mockTransactions: Transaction[] = [
 
 export default function Hero() {
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -118,6 +120,13 @@ export default function Hero() {
             >
               <Play className="w-5 h-5" />
               Watch Demo
+            </button>
+
+            <button
+              onClick={() => scrollToSection('admin-panel')}
+              className="group px-8 py-4 bg-zinc-900 border border-zinc-700 text-zinc-300 text-lg font-semibold rounded-lg hover:bg-zinc-800 hover:text-white transition-all hover:scale-105 flex items-center gap-2 min-h-[44px]"
+            >
+              Admin Panel
             </button>
           </motion.div>
 

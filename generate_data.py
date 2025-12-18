@@ -6,22 +6,47 @@ import financial_transaction_fraud_detection as ml_pipeline
 # Ensure data directory exists
 os.makedirs("src/data", exist_ok=True)
 
-# Get X_test from the pipeline
-X_test = ml_pipeline.X_test
+# 🔹 CALL the pipeline (this is the key fix)
+_, _, _, X_test, y_test = ml_pipeline.run_full_ml_pipeline()
 
-# Select 50 random samples or just the first 50
-# Let's take first 50 to be deterministic
-# Select 500 random samples or just the first 500
-# Let's take first 500 to be deterministic
-df_sample = X_test.head(500).copy()
+# Reconstruct labeled test dataframe
+test_df = X_test.copy()
+test_df["Class"] = y_test.values
 
-# Convert to records (list of dicts)
-records = df_sample.to_dict(orient="records")
+# Split fraud vs normal (TEST SET ONLY)
+fraud_df = test_df[test_df["Class"] == 1]
+normal_df = test_df[test_df["Class"] == 0]
 
-# Save to JSON
+print(f"Fraud in test set: {len(fraud_df)}")
+print(f"Normal in test set: {len(normal_df)}")
+
+# --- DEMO MIX ---
+FRAUD_COUNT = 10
+TOTAL_TXNS = 500
+
+fraud_sample = fraud_df.sample(
+    n=min(FRAUD_COUNT, len(fraud_df)),
+    random_state=42
+)
+
+normal_sample = normal_df.sample(
+    n=TOTAL_TXNS - len(fraud_sample),
+    random_state=42
+)
+
+# Combine + shuffle
+demo_df = (
+    pd.concat([fraud_sample, normal_sample])
+      .sample(frac=1, random_state=42)
+)
+
+# Drop label before frontend
+demo_df = demo_df.drop(columns=["Class"])
+
+# Save JSON
 output_path = "src/data/test_transactions.json"
-with open(output_path, "w") as f:
-    json.dump(records, f, indent=2)
+demo_df.to_json(output_path, orient="records", indent=2)
 
-print(f"✅ Saved {len(records)} transactions to {output_path}")
-print("Sample record:", records[0])
+print(f"✅ Saved {len(demo_df)} demo transactions")
+print(f"🔥 Included fraud cases: {len(fraud_sample)}")
+print("Sample record:", demo_df.iloc[0].to_dict())
