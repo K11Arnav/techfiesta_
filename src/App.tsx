@@ -14,6 +14,7 @@ import Footer from './components/Footer'
 import InputPage from './components/InputPage'
 import ResultsPage from './components/ResultsPage'
 import RuleApprovalSection from './components/RuleApprovalSection'
+import FeatureSpaceGraph from './components/FeatureSpaceGraph'
 
 function App() {
   const [scrolled, setScrolled] = useState(false)
@@ -42,6 +43,7 @@ function App() {
                 <Features />
                 <HowItWorks />
                 <DashboardPreview />
+                <FeatureSpaceGraph />
                 <RuleApprovalSection />
                 <TechnologyStack />
                 <CTA />

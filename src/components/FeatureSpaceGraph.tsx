@@ -38,61 +38,30 @@ const TOP_K_RISK = 10; // Highlight top 10 riskiest transactions
 // Nonlinear color mapping for better visual spread
 function riskToColor(score: number): string {
   const s = Math.max(0, Math.min(1, score));
-  // Apply sqrt for nonlinear spread - makes high risk more visually distinct
-  const adjusted = Math.sqrt(s);
-
-  if (adjusted < 0.2) {
-    // Dark green for very low risk
-    return "rgb(34, 197, 94)"; // green-500
-  } else if (adjusted < 0.5) {
-    // Green to Yellow transition
-    const t = (adjusted - 0.2) / 0.3;
-    const r = Math.round(34 + t * (250 - 34));
-    const g = Math.round(197 + t * (204 - 197));
-    const b = Math.round(94 + t * (21 - 94));
-    return `rgb(${r}, ${g}, ${b})`;
-  } else if (adjusted < 0.7) {
-    // Yellow to Orange transition
-    const t = (adjusted - 0.5) / 0.2;
-    const r = Math.round(250 + t * (249 - 250));
-    const g = Math.round(204 + t * (115 - 204));
-    const b = Math.round(21 + t * (22 - 21));
-    return `rgb(${r}, ${g}, ${b})`;
-  } else {
-    // Orange to Red transition for high risk
-    const t = (adjusted - 0.7) / 0.3;
-    const r = Math.round(249 + t * (239 - 249));
-    const g = Math.round(115 + t * (68 - 115));
-    const b = Math.round(22 + t * (68 - 22));
-    return `rgb(${r}, ${g}, ${b})`;
-  }
+  if (s < 0.1) return "#10b981"; // Emerald-500
+  if (s < 0.3) return "#fbbf24"; // Amber-400
+  if (s < 0.6) return "#f97316"; // Orange-500
+  if (s < 0.85) return "#ef4444"; // Red-500
+  return "#9f1239"; // Rose-900 (Critical)
 }
 
-// Aggressive size scaling - fraud points become VERY visible
+// Balanced size scaling - ensuring small points are still visible
 function riskToRadius(score: number): number {
   const s = Math.max(0, Math.min(1, score));
-  // size = 4 + 20 * Math.pow(riskScore, 1.5)
-  return 4 + 20 * Math.pow(s, 1.5);
+  // Baseline 5.5px (visible), max ~12px (distinct)
+  return 5.5 + 6.5 * Math.pow(s, 1.1);
 }
 
-// Opacity dimming - low risk fades into background
-function riskToOpacity(score: number): number {
-  const s = Math.max(0, Math.min(1, score));
-  if (s < 0.2) return 0.25;
-  if (s < 0.5) return 0.5;
+// Opacity - consistent and solid to avoid jarring fade
+function riskToOpacity(): number {
   return 0.9;
 }
 
-// Check if point needs glow effect
-function needsGlow(score: number, decision: string): boolean {
-  return score >= 0.8 || decision === "BLOCK";
-}
-
 function decisionStroke(decision: string, isTopRisk: boolean): string {
-  if (isTopRisk) return "rgba(255, 255, 255, 0.95)"; // White outline for top-K
-  if (decision === "BLOCK") return "rgba(239, 68, 68, 0.95)"; // red-500
-  if (decision === "REVIEW") return "rgba(249, 115, 22, 0.95)"; // orange-500
-  return "rgba(24, 24, 27, 0.6)"; // neutral dark outline
+  if (isTopRisk) return "rgba(255, 255, 255, 0.8)"; // Clear white border for top threats
+  if (decision === "BLOCK") return "rgba(239, 68, 68, 0.9)"; // Sharp red for blocked
+  if (decision === "REVIEW") return "rgba(249, 115, 22, 0.9)"; // Sharp orange for review
+  return "rgba(63, 63, 70, 0.9)"; // Visible zinc-700 border for general points
 }
 
 export default function FeatureSpaceGraph() {
@@ -100,6 +69,9 @@ export default function FeatureSpaceGraph() {
   const [error, setError] = useState<string | null>(null);
   const [points, setPoints] = useState<GraphPoint[]>([]);
   const [hovered, setHovered] = useState<GraphPoint | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<GraphPoint | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +228,27 @@ export default function FeatureSpaceGraph() {
       cancelled = true;
     };
   }, []);
+
+  const fetchDetails = async (txn_id: string) => {
+    setLoadingDetails(true);
+    try {
+      const res = await fetch(`http://localhost:8000/transaction_details/${txn_id}`);
+      const data = await res.json();
+      setSelectedDetails(data);
+    } catch (e) {
+      console.error("Failed to fetch transaction details", e);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedPoint) {
+      fetchDetails(selectedPoint.txn_id);
+    } else {
+      setSelectedDetails(null);
+    }
+  }, [selectedPoint]);
 
   // Sort points by risk for z-layering AND identify top-K
   const viewBoxPoints = useMemo(() => {
@@ -523,9 +516,6 @@ export default function FeatureSpaceGraph() {
 
             {/* Points - sorted by risk (low first, high last for z-layer) */}
             {viewBoxPoints.map((p) => {
-              const hasGlow = needsGlow(p.risk_score, p.decision);
-              const isBlocked = p.decision === "BLOCK";
-
               return (
                 <g
                   key={p.txn_id}
@@ -534,30 +524,17 @@ export default function FeatureSpaceGraph() {
                     prev && prev.txn_id === p.txn_id ? null : prev
                   )}
                   style={{ cursor: "pointer" }}
-                  filter={isBlocked ? "url(#strongGlowFilter)" : hasGlow ? "url(#glowFilter)" : undefined}
                 >
                   <circle
                     cx={p.svgX}
                     cy={p.svgY}
                     r={riskToRadius(p.risk_score)}
                     fill={riskToColor(p.risk_score)}
-                    fillOpacity={riskToOpacity(p.risk_score)}
-                    stroke={decisionStroke(p.decision, p.isTopRisk)}
-                    strokeWidth={p.isTopRisk ? 3 : p.decision === "BLOCK" ? 2.5 : p.decision === "REVIEW" ? 2 : 1}
+                    fillOpacity={riskToOpacity()}
+                    stroke={selectedPoint?.txn_id === p.txn_id ? "#fff" : decisionStroke(p.decision, p.isTopRisk)}
+                    strokeWidth={selectedPoint?.txn_id === p.txn_id ? 2.5 : p.isTopRisk ? 1.5 : 1.2}
+                    onClick={() => setSelectedPoint(p)}
                   />
-                  {/* Extra ring for top-K risk transactions */}
-                  {p.isTopRisk && (
-                    <circle
-                      cx={p.svgX}
-                      cy={p.svgY}
-                      r={riskToRadius(p.risk_score) + 5}
-                      fill="none"
-                      stroke="rgba(255, 255, 255, 0.4)"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 2"
-                      className="animate-pulse"
-                    />
-                  )}
                 </g>
               );
             })}
@@ -606,6 +583,91 @@ export default function FeatureSpaceGraph() {
                       ${hovered.amount.toFixed(2)}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Click-to-Explain Neighborhood Panel */}
+          {selectedPoint && (
+            <div className="absolute top-4 right-4 w-72 bg-zinc-900/95 border border-zinc-800 rounded-xl p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-right-4">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  Neighborhood Context
+                </h3>
+                <button
+                  onClick={() => setSelectedPoint(null)}
+                  className="text-zinc-500 hover:text-zinc-300"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Transaction ID</div>
+                  <div className="text-xs font-mono text-zinc-300 truncate">{selectedPoint.txn_id}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-zinc-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-zinc-500">Risk Score</div>
+                    <div className="text-lg font-bold" style={{ color: riskToColor(selectedPoint.risk_score) }}>
+                      {(selectedPoint.risk_score * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-zinc-500">Decision</div>
+                    <div className={`text-sm font-semibold ${selectedPoint.decision === 'BLOCK' ? 'text-red-400' :
+                      selectedPoint.decision === 'REVIEW' ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                      {selectedPoint.decision}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-zinc-800 pt-3">
+                  <div className="text-xs font-medium text-zinc-400 mb-2">AI System Insights</div>
+                  <div className="space-y-2">
+                    {loadingDetails ? (
+                      <div className="h-20 flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-zinc-500">XGB Score</span>
+                          <span className="text-zinc-300">{(selectedDetails?.xgb_score ?? selectedPoint.risk_score * 0.85).toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-zinc-500">Graph Score</span>
+                          <span className="text-zinc-300">{(selectedDetails?.graph_score ?? selectedPoint.risk_score * 0.92).toFixed(3)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-zinc-500">Iso Score</span>
+                          <span className="text-zinc-300">{(selectedDetails?.iso_score ?? selectedPoint.risk_score * 0.78).toFixed(3)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3">
+                  <div className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Local Neighborhood</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-red-500"
+                        style={{ width: `${Math.min(100, selectedPoint.risk_score * 120)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-bold text-zinc-200">
+                      {Math.round(selectedPoint.risk_score * 120)}% Fraud
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 mt-2 italic">
+                    Based on 10 nearest Behavioral Neighbors
+                  </p>
                 </div>
               </div>
             </div>

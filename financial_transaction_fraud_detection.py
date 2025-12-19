@@ -9,8 +9,12 @@ Original file is located at
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+except ImportError:
+    plt = None
+    sns = None
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, f1_score, roc_auc_score
@@ -29,6 +33,7 @@ from sklearn.metrics import (
     precision_recall_curve
 )
 import shap
+from sklearn.neighbors import NearestNeighbors
 
 # =====================================================================
 #                    WRAP ENTIRE PIPELINE IN ONE FUNCTION
@@ -129,14 +134,84 @@ def run_full_ml_pipeline():
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_test_scaled)
 
-    shap.summary_plot(
-        shap_values,
-        X_test_scaled,
-        plot_type="bar"
+    if sns and plt:
+        shap.summary_plot(
+            shap_values,
+            X_test_scaled,
+            plot_type="bar"
+        )
+
+    # =================================================================
+    #                   ISOLATION FOREST SECTION
+    # =================================================================
+    print("\n" + "="*40)
+    print("    STARTING ISOLATION FOREST TRAINING")
+    print("="*40)
+
+    # 1. Feature Engineering (Specific to ISO)
+    X_train_iso = X_train.copy()
+    X_train_iso['Hour'] = X_train_iso['Time'].apply(lambda x: np.floor(x / 3600) % 24)
+    X_train_iso = X_train_iso.drop('Time', axis=1)
+
+    # 2. Scaling
+    iso_scaler = StandardScaler()
+    cols_to_scale = ['Amount', 'Hour']
+    X_train_iso[cols_to_scale] = iso_scaler.fit_transform(X_train_iso[cols_to_scale])
+
+    # 3. Model Training
+    contamination = (y_train == 1).sum() / len(y_train)
+    iso_model = IsolationForest(
+        n_estimators=100,
+        contamination=max(contamination, 0.001),
+        random_state=42,
+        n_jobs=-1
     )
+    iso_model.fit(X_train_iso)
+
+    # 4. Score normalization parameters
+    y_train_scores_iso = iso_model.decision_function(X_train_iso)
+    iso_components = {
+        "model": iso_model,
+        "scaler": iso_scaler,
+        "score_min": float(y_train_scores_iso.min()),
+        "score_max": float(y_train_scores_iso.max())
+    }
+
+    # =================================================================
+    #                   GRAPH / SIMILARITY SECTION
+    # =================================================================
+    print("\n" + "="*40)
+    print("    STARTING GRAPH NEIGHBORHOOD TRAINING")
+    print("="*40)
+
+    # For the graph, we use V1-V28 features
+    v_cols = [f'V{i}' for i in range(1, 29)]
+    X_train_v = X_train[v_cols].values
+
+    # Fit KNN on a sample for performance if needed, but here we can use a reasonable subset
+    # Let's take 20k samples including ALL fraud to ensure we have fraud neighbors
+    fraud_indices = y_train[y_train == 1].index
+    non_fraud_indices = y_train[y_train == 0].sample(min(20000, sum(y_train == 0)), random_state=42).index
+    reference_indices = fraud_indices.union(non_fraud_indices)
+
+    X_ref = X_train.loc[reference_indices]
+    y_ref = y_train.loc[reference_indices]
+
+    knn = NearestNeighbors(n_neighbors=10, metric='euclidean', n_jobs=-1)
+    knn.fit(X_ref[v_cols])
+
+    graph_components = {
+        "model": knn,
+        "reference_data": {
+            "features": X_ref[v_cols].values.tolist(),
+            "labels": y_ref.values.tolist(),
+            "amounts": X_ref['Amount'].values.tolist(),
+            "v_cols": v_cols
+        }
+    }
 
     # Return everything needed
-    return model, scaler, explainer, X_test
+    return model, scaler, explainer, X_test, iso_components, graph_components
 
 
 # =====================================================================
@@ -168,33 +243,80 @@ def train_xgb_model(X_train, y_train):
 def compute_risk_score(transaction_df, components, weights=None):
     if weights is None:
         weights = {
-            "xgb": 1.0,
-            "iso": 0.0,
-            "graph": 0.0,
-            "reputation": 0.0,
-            "rules": 0.0
+            "xgb": 0.6,
+            "iso": 0.2,
+            "graph": 0.2
         }
 
-    # Initialize all channels to zero to avoid missing-key errors
     scores = {k: 0.0 for k in weights}
+
+    # -------- XGBOOST --------
     if "xgb" in components:
-        # Scale numeric fields the same way as training
         scaled_df = transaction_df.copy()
         scaled_df[['Amount', 'Time']] = components["xgb"]["scaler"].transform(
             transaction_df[['Amount', 'Time']]
         )
-        scores["xgb"] = components["xgb"]["model"].predict_proba(
-            scaled_df
-        )[:, 1]
-    else:
-        scores["xgb"] = 0.0
+        scores["xgb"] = float(components["xgb"]["model"].predict_proba(scaled_df)[:, 1][0])
 
-    final_risk = sum(weights[k] * scores[k] for k in weights)
-    return  {
-    "xgb": float(scores.get("xgb", 0.0)),
-    "iso": float(scores.get("iso", 0.0)),
-    "final": float(np.clip(final_risk, 0.0, 1.0))
-}
+    # -------- ISOLATION FOREST --------
+    if "iso" in components:
+        df_iso = transaction_df.copy()
+        df_iso["Hour"] = np.floor(df_iso["Time"] / 3600) % 24
+        df_iso = df_iso.drop("Time", axis=1)
+
+        cols_to_scale = ["Amount", "Hour"]
+        df_iso[cols_to_scale] = components["iso"]["scaler"].transform(df_iso[cols_to_scale])
+
+        raw_score = -components["iso"]["model"].decision_function(df_iso)[0]
+        smin = components["iso"]["score_min"]
+        smax = components["iso"]["score_max"]
+
+        scores["iso"] = float(np.clip((raw_score - smin) / (smax - smin + 1e-8), 0.0, 1.0))
+
+    # -------- GRAPH / KNN --------
+    if "graph" in components:
+        v_cols = [f'V{i}' for i in range(1, 29)]
+        query_v = transaction_df[v_cols].values
+        
+        distances, indices = components["graph"]["model"].kneighbors(query_v)
+        
+        # 1. Fraud Density
+        neighbor_labels = np.array(components["graph"]["reference_data"]["labels"])[indices[0]]
+        fraud_density = np.mean(neighbor_labels)
+        
+        # 2. Local Anomaly (Relative Distance)
+        # We can use the distance to the 10th neighbor as a simple density measure
+        avg_dist = np.mean(distances[0])
+        # Simple normalization (this is heuristic)
+        local_iso = np.clip(avg_dist / 10.0, 0.0, 1.0)
+        
+        # 3. Amount Deviation
+        neighbor_amounts = np.array(components["graph"]["reference_data"]["amounts"])[indices[0]]
+        median_amt = np.median(neighbor_amounts)
+        std_amt = np.std(neighbor_amounts) + 1e-8
+        amt_deviation = np.clip(abs(transaction_df['Amount'].values[0] - median_amt) / (3 * std_amt), 0.0, 1.0)
+        
+        # Combine into graph score
+        scores["graph"] = float(0.5 * fraud_density + 0.3 * local_iso + 0.2 * amt_deviation)
+
+    final_risk = sum(weights.get(k, 0) * scores.get(k, 0) for k in scores)
+    
+    # Also return neighboring info for frontend "Click-to-Explain"
+    neighbor_info = []
+    if "graph" in components:
+        for idx in indices[0]:
+            neighbor_info.append({
+                "label": int(components["graph"]["reference_data"]["labels"][idx]),
+                "amount": float(components["graph"]["reference_data"]["amounts"][idx])
+            })
+
+    return {
+        "xgb": scores.get("xgb", 0.0),
+        "iso": scores.get("iso", 0.0),
+        "graph": scores.get("graph", 0.0),
+        "final": float(np.clip(final_risk, 0.0, 1.0)),
+        "neighbors": neighbor_info
+    }
 
 
 def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
