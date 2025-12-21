@@ -2,6 +2,7 @@ import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock } from 'lucide-reac
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import GradientBlinds from './GradientBlinds'
 
 interface Transaction {
   id: number
@@ -73,7 +74,21 @@ export default function Hero() {
       id="hero"
       className="relative min-h-screen flex items-center justify-center overflow-hidden bg-zinc-950"
     >
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32">
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-40">
+        <GradientBlinds
+          gradientColors={['#10b981', '#059669', '#047857']}
+          angle={0}
+          noise={0}
+          blindCount={16}
+          blindMinWidth={95}
+          spotlightRadius={0.5}
+          distortAmount={0}
+          mouseDampening={0.15}
+          mixBlendMode="screen"
+        />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 z-10">
         <div className="text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}

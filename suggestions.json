@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "target_rule": "velocity",
+    "parameter": "time_window_sec",
+    "current_value": 5,
+    "proposed_value": 3,
+    "reasoning": "Block rate is low, tightening velocity check."
+  }
+]

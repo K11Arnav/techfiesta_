@@ -312,12 +312,21 @@ export default function DashboardPreview() {
                           layout
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="bg-zinc-800/80 p-4 rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-colors group"
+                          className={`p-4 rounded-lg border transition-colors group ${alert.status === 'high_risk'
+                            ? 'bg-zinc-800/80 border-rose-500/20 hover:border-rose-500/40'
+                            : 'bg-zinc-800/80 border-amber-500/20 hover:border-amber-500/40'
+                            }`}
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-rose-500/10 rounded-md">
-                                <AlertTriangle className="w-4 h-4 text-rose-500" />
+                              <div className={`p-2 rounded-md ${alert.status === 'high_risk'
+                                ? 'bg-rose-500/10'
+                                : 'bg-amber-500/10'
+                                }`}>
+                                {alert.status === 'high_risk'
+                                  ? <ShieldAlert className="w-4 h-4 text-rose-500" />
+                                  : <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                }
                               </div>
                               <div>
                                 <div className="text-sm font-bold text-zinc-200">
@@ -329,10 +338,14 @@ export default function DashboardPreview() {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-lg font-bold text-rose-400">
+                              <div className={`text-lg font-bold ${alert.status === 'high_risk' ? 'text-rose-400' : 'text-amber-400'
+                                }`}>
                                 {(alert.risk_score * 100).toFixed(1)}%
                               </div>
-                              <div className="text-xs text-rose-500/70 uppercase font-bold tracking-wider">High Risk</div>
+                              <div className={`text-xs uppercase font-bold tracking-wider ${alert.status === 'high_risk' ? 'text-rose-500/70' : 'text-amber-500/70'
+                                }`}>
+                                {alert.status === 'high_risk' ? 'High Risk' : 'Suspicious'}
+                              </div>
                             </div>
                           </div>
 

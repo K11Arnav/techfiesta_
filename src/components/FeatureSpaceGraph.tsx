@@ -658,11 +658,11 @@ export default function FeatureSpaceGraph() {
                     <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-red-500"
-                        style={{ width: `${Math.min(100, selectedPoint.risk_score * 120)}%` }}
+                        style={{ width: `${Math.min(100, selectedPoint.risk_score * 100)}%` }}
                       />
                     </div>
                     <span className="text-xs font-bold text-zinc-200">
-                      {Math.round(selectedPoint.risk_score * 120)}% Fraud
+                      {Math.round(selectedPoint.risk_score * 100)}% Fraud
                     </span>
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-2 italic">

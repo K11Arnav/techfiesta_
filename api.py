@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Any
 import pandas as pd
@@ -16,46 +16,20 @@ import psycopg2.extras
 # --------------------------------------
 # DATABASE CONNECTION
 # --------------------------------------
-try:
-    db_url = os.getenv("DB_URL")
-    if db_url:
-        conn = psycopg2.connect(db_url, sslmode="require", connect_timeout=10)
-    else:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            database=os.getenv("DB_NAME", "postgres"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", ""),
-            port=os.getenv("DB_PORT", "5432"),
-            sslmode="require",
-            connect_timeout=10
-        )
-    print("✅ Connected to PostgreSQL database (Supabase).")
-except Exception as e:
-    conn = None
-    print(f"⚠️ WARNING: Could not connect to PostgreSQL: {e}")
-    print("API will run in 'Offline Mode' (no database logging).")
+conn = psycopg2.connect(
+    host=os.getenv("DB_HOST"),
+    database=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD")
+)
 
 def execute_query(query, params=None):
-    if conn is None:
-        # Mock mode: print and return empty if connection failed
-        # print(f"[MOCK DB] Executing: {query}")
-        return []
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(query, params)
-            conn.commit()
-            return cur.fetchall() if cur.description else None
-    except Exception as e:
-        print(f"❌ Database error: {e}")
-        conn.rollback()
-        return []
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query, params)
+        conn.commit()
+        return cur.fetchall() if cur.description else None
 
-# Update schema
-try:
-    execute_query("ALTER TABLE fraud.ml_scores ADD COLUMN IF NOT EXISTS graph_score FLOAT;")
-except:
-    pass
+
 
 
 # --------------------------------------
@@ -63,6 +37,7 @@ except:
 # --------------------------------------
 import financial_transaction_fraud_detection as ml_pipeline
 from fraud_rules import RuleEngine
+from email_notifier import EmailNotifier
 
 MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
@@ -209,7 +184,7 @@ def get_user_last_txn_time(user_id):
 # SCORE TRANSACTION
 # --------------------------------------
 @app.post("/score_transaction")
-def score_transaction(transaction: Transaction):
+def score_transaction(transaction: Transaction, background_tasks: BackgroundTasks):
     try:
         # Convert input → DataFrame
         data = transaction.model_dump()
@@ -325,6 +300,10 @@ def score_transaction(transaction: Transaction):
             decision,
             "XGBoost-based scoring"
         ))
+
+        # Email Notification (Background Task)
+        if decision in ["BLOCK", "REVIEW"]:
+            background_tasks.add_task(EmailNotifier.send_fraud_alert, txn_id, risk_score, decision)
 
         return {
             "txn_id": txn_id,
