@@ -1,9 +1,16 @@
 [
   {
+    "target_rule": "amount_threshold",
+    "parameter": "max_transaction_amount_percentile",
+    "current_value": 90,
+    "proposed_value": 85,
+    "reasoning": "Blocks transactions below the 90th percentile, suggesting lowering to include more potential fraudulent patterns."
+  },
+  {
     "target_rule": "velocity",
     "parameter": "time_window_sec",
     "current_value": 5,
     "proposed_value": 3,
-    "reasoning": "Block rate is low, tightening velocity check."
+    "reasoning": "Current block rate is relatively low. Tightening the velocity check might be necessary to catch new types of fraud."
   }
 ]

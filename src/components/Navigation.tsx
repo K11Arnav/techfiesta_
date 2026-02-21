@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, MapPin } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 interface NavigationProps {
   scrolled: boolean
@@ -7,6 +8,7 @@ interface NavigationProps {
 
 export default function Navigation({ scrolled }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const navigate = useNavigate()
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
@@ -18,11 +20,10 @@ export default function Navigation({ scrolled }: NavigationProps) {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
           ? 'bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50'
           : 'bg-transparent'
-      }`}
+        }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
@@ -54,6 +55,13 @@ export default function Navigation({ scrolled }: NavigationProps) {
               className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
             >
               Dashboard
+            </button>
+            <button
+              onClick={() => navigate('/location-demo')}
+              className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              Location Demo
             </button>
             <button
               onClick={() => scrollToSection('cta')}
@@ -101,6 +109,13 @@ export default function Navigation({ scrolled }: NavigationProps) {
               className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
             >
               Dashboard
+            </button>
+            <button
+              onClick={() => { navigate('/location-demo'); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
+            >
+              <MapPin className="w-4 h-4" />
+              Location Demo
             </button>
             <button
               onClick={() => scrollToSection('cta')}

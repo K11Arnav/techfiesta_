@@ -211,7 +211,7 @@ def run_full_ml_pipeline():
     }
 
     # Return everything needed
-    return model, scaler, explainer, X_test, iso_components, graph_components
+    return model, scaler, explainer, X_test, y_test, iso_components, graph_components
 
 
 # =====================================================================

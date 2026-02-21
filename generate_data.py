@@ -7,7 +7,7 @@ import financial_transaction_fraud_detection as ml_pipeline
 os.makedirs("src/data", exist_ok=True)
 
 # 🔹 CALL the pipeline (this is the key fix)
-_, _, _, X_test, y_test = ml_pipeline.run_full_ml_pipeline()
+_, _, _, X_test, y_test, _, _ = ml_pipeline.run_full_ml_pipeline()
 
 # Reconstruct labeled test dataframe
 test_df = X_test.copy()
@@ -21,8 +21,8 @@ print(f"Fraud in test set: {len(fraud_df)}")
 print(f"Normal in test set: {len(normal_df)}")
 
 # --- DEMO MIX ---
-FRAUD_COUNT = 10
 TOTAL_TXNS = 500
+FRAUD_COUNT = 200  
 
 fraud_sample = fraud_df.sample(
     n=min(FRAUD_COUNT, len(fraud_df)),

@@ -1,4 +1,4 @@
-import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
+import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock, MapPin } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -142,6 +142,14 @@ export default function Hero() {
               className="group px-8 py-4 bg-zinc-900 border border-zinc-700 text-zinc-300 text-lg font-semibold rounded-lg hover:bg-zinc-800 hover:text-white transition-all hover:scale-105 flex items-center gap-2 min-h-[44px]"
             >
               Admin Panel
+            </button>
+
+            <button
+              onClick={() => navigate('/location-demo')}
+              className="group px-8 py-4 bg-gradient-to-r from-red-600 to-orange-500 text-white text-lg font-semibold rounded-lg hover:from-red-500 hover:to-orange-400 transition-all hover:scale-105 shadow-xl flex items-center gap-2 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+            >
+              <MapPin className="w-5 h-5" />
+              Location Demo
             </button>
           </motion.div>
 

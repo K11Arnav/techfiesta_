@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { AlertTriangle, TrendingUp, Play, Pause, ShieldCheck, ShieldAlert, Activity } from 'lucide-react'
+import { AlertTriangle, Play, Pause, ShieldCheck, ShieldAlert, Activity } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import testTransactions from '../data/test_transactions.json'
+import TravelAnomalyPanel, { type TravelAnomaly } from './TravelAnomalyPanel'
 
 interface SHAPFeature {
   feature: string
@@ -10,7 +11,21 @@ interface SHAPFeature {
 
 interface AnalysisResult {
   risk_score: number
+  base_score: number
   explanation: SHAPFeature[]
+  user_id?: string
+  user_risk?: number
+  location_risk?: number
+  geo_distance_km?: number
+  risk_tier?: string
+  txn_lat?: number
+  txn_lon?: number
+  prev_lat?: number | null
+  prev_lon?: number | null
+  txn_region?: string
+  direction?: string
+  geo?: { distance_km: number; is_impossible: boolean }
+  rule_flags?: string[]
 }
 
 interface TransactionRecord {
@@ -22,6 +37,8 @@ interface TransactionRecord {
   explanation: SHAPFeature[]
 }
 
+
+
 export default function DashboardPreview() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -30,6 +47,9 @@ export default function DashboardPreview() {
   // High-risk alerts
   const [alerts, setAlerts] = useState<TransactionRecord[]>([])
 
+  // Travel anomalies (location_risk > 0.3)
+  const [travelAnomalies, setTravelAnomalies] = useState<TravelAnomaly[]>([])
+
   // Stats
   const [stats, setStats] = useState({
     processed: 0,
@@ -37,7 +57,7 @@ export default function DashboardPreview() {
     verified: 0
   })
 
-  const streamRef = useRef<NodeJS.Timeout | null>(null)
+  const streamRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const indexRef = useRef(0)
   const isProcessingRef = useRef(false)
   const isStreamingRef = useRef(false)
@@ -86,6 +106,7 @@ export default function DashboardPreview() {
     const txn = testTransactions[indexRef.current]
 
     try {
+      // Send raw Kaggle txn — backend handles user cycling + location generation
       const response = await fetch('http://localhost:8000/score_transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,6 +141,24 @@ export default function DashboardPreview() {
           explanation: result.explanation
         }
         setAlerts(prev => [newAlert, ...prev])
+      }
+
+      // ── Track travel anomalies via rule_flags ──
+      const isGeoFraud = result.rule_flags?.includes('IMPOSSIBLE_TRAVEL')
+      if (isGeoFraud && result.txn_lat != null && result.txn_lon != null) {
+        const anomaly: TravelAnomaly = {
+          id: indexRef.current + 1,
+          userId: result.user_id || 'unknown',
+          direction: result.direction || 'Unknown',
+          fromLat: result.prev_lat ?? result.txn_lat,
+          fromLon: result.prev_lon ?? result.txn_lon,
+          toLat: result.txn_lat,
+          toLon: result.txn_lon,
+          distanceKm: result.geo?.distance_km || 0,
+          isImpossible: true,
+          timestamp: new Date().toLocaleTimeString(),
+        }
+        setTravelAnomalies(prev => [anomaly, ...prev].slice(0, 10))
       }
 
       indexRef.current += 1
@@ -183,6 +222,7 @@ export default function DashboardPreview() {
                       setCurrentIndex(0)
                       setStats({ processed: 0, flagged: 0, verified: 0 })
                       setAlerts([])
+                      setTravelAnomalies([])
                       setCurrentResult(null)
                     }
                     setIsStreaming(!isStreaming)
@@ -365,7 +405,9 @@ export default function DashboardPreview() {
                 </div>
               </div>
 
+              {/* Travel Anomaly Panel */}
             </div>
+            <TravelAnomalyPanel anomalies={travelAnomalies} />
           </div>
 
           <div className="absolute -bottom-8 left-0 right-0 h-32 bg-gradient-to-t from-zinc-950/50 to-transparent opacity-10 transform scale-y-[-1] blur-xl"></div>

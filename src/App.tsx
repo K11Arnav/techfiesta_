@@ -15,6 +15,7 @@ import InputPage from './components/InputPage'
 import ResultsPage from './components/ResultsPage'
 import RuleApprovalSection from './components/RuleApprovalSection'
 import FeatureSpaceGraph from './components/FeatureSpaceGraph'
+import LocationFraudDemo from './components/LocationFraudDemo'
 
 function App() {
   const [scrolled, setScrolled] = useState(false)
@@ -58,6 +59,9 @@ function App() {
 
         {/* New Results Page */}
         <Route path="/results" element={<ResultsPage />} />
+
+        {/* Location Fraud Demo */}
+        <Route path="/location-demo" element={<LocationFraudDemo />} />
 
       </Routes>
     </Router>

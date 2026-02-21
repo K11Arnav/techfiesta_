@@ -13,9 +13,7 @@ load_dotenv()
 import psycopg2
 import psycopg2.extras
 
-# --------------------------------------
-# DATABASE CONNECTION
-# --------------------------------------
+ 
 conn = psycopg2.connect(
     host=os.getenv("DB_HOST"),
     database=os.getenv("DB_NAME"),
@@ -32,12 +30,11 @@ def execute_query(query, params=None):
 
 
 
-# --------------------------------------
-# IMPORT ML PIPELINE (for functions)
-# --------------------------------------
+
 import financial_transaction_fraud_detection as ml_pipeline
 from fraud_rules import RuleEngine
 from email_notifier import EmailNotifier
+import user_risk
 
 MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
@@ -50,13 +47,11 @@ ISO_SCALER_PATH = "iso_scaler.pkl"
 ISO_META_PATH = "iso_metadata.pkl"
 GRAPH_MODEL_PATH = "graph_model.pkl"
 GRAPH_REF_PATH = "graph_reference.pkl"
-# Initialize Rule Engine
+
 RULE_ENGINE = RuleEngine()
 
 
-# --------------------------------------
-# LOAD / TRAIN ARTIFACTS
-# --------------------------------------
+
 def load_or_train_artifacts():
     try:
         model = joblib.load(MODEL_PATH)
@@ -111,9 +106,7 @@ MODEL, SCALER, EXPLAINER, ISO_MODEL, ISO_SCALER, ISO_META, GRAPH_MODEL, GRAPH_RE
 
 
 
-# --------------------------------------
-# FASTAPI + CORS
-# --------------------------------------
+
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -127,9 +120,7 @@ app.add_middleware(
 )
 
 
-# --------------------------------------
-# INPUT MODEL — ALL FEATURES
-# --------------------------------------
+
 class Transaction(BaseModel):
     Time: float
     Amount: float
@@ -161,12 +152,14 @@ class Transaction(BaseModel):
     V26: float
     V27: float
     V28: float
+    # --- User Profiling (optional, backwards-compatible) ---
+    user_id: str = "user_demo"
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 
-# --------------------------------------
-# HELPER: GET LAST TRANSACTION TIME
-# --------------------------------------
+
 def get_user_last_txn_time(user_id):
     """Fetches the timestamp of the last transaction for the user."""
     res = execute_query("""
@@ -177,22 +170,135 @@ def get_user_last_txn_time(user_id):
     """, (user_id,))
     
     if res and res[0]['timestamp']:
-        return res[0]['timestamp'].timestamp() # Return as float timestamp
+        return res[0]['timestamp'].timestamp() 
     return None
 
-# --------------------------------------
-# SCORE TRANSACTION
-# --------------------------------------
+
+# ── RUNTIME USER GEO STATE (in-memory, never persisted) ──────────────────────
+import numpy as np
+
+_user_geo_state: dict = {}
+_user_ids = ["user_1", "user_2", "user_3", "user_4"]
+_user_counter = 0
+
+def _init_user(user_id: str):
+    """Initialize user with a random starting position (Pune area)."""
+    if user_id not in _user_geo_state:
+        _user_geo_state[user_id] = {
+            "lat": float(np.random.uniform(18.4, 18.7)),
+            "lon": float(np.random.uniform(73.7, 74.0)),
+        }
+
+def _cycle_user_id() -> str:
+    """Rotate through fixed user IDs."""
+    global _user_counter
+    uid = _user_ids[_user_counter % len(_user_ids)]
+    _user_counter += 1
+    return uid
+
+def _generate_runtime_location(user_id: str) -> tuple:
+    """
+    Generate runtime location for a user.
+    Returns (prev_lat, prev_lon, new_lat, new_lon).
+    Early-bias: ~15% anomaly rate for first 10 txns, decays to ~5%.
+    Anomaly jump: 8-12 degrees (~900-1300 km) — guaranteed to cross 800km threshold.
+    """
+    _init_user(user_id)
+    prev = _user_geo_state[user_id]
+
+    # Smooth early bias (higher anomaly rate at start for demo impact)
+    progress = min(_user_counter / 10.0, 1.0)
+    anomaly_prob = 0.15 * (1 - progress) + 0.05
+
+    if np.random.rand() < anomaly_prob:
+        # BIG jump (guaranteed anomaly)
+        delta_lat = float(np.random.uniform(8.0, 12.0))
+        delta_lon = float(np.random.uniform(8.0, 12.0))
+    else:
+        # Normal: tiny Gaussian drift
+        delta_lat = float(np.random.normal(0, 0.002))
+        delta_lon = float(np.random.normal(0, 0.002))
+
+    new_lat = prev["lat"] + delta_lat
+    new_lon = prev["lon"] + delta_lon
+
+    _user_geo_state[user_id] = {
+        "lat": new_lat,
+        "lon": new_lon,
+    }
+    return prev["lat"], prev["lon"], new_lat, new_lon
+
+def compute_geo_anomaly(prev_lat, prev_lon, curr_lat, curr_lon) -> dict:
+    """Rule-based impossible travel check. Threshold: 800 km."""
+    dist = float(np.sqrt((curr_lat - prev_lat)**2 + (curr_lon - prev_lon)**2))
+    km = dist * 111  # approximate degrees-to-km
+    return {
+        "distance_km": round(km, 2),
+        "is_impossible": km > 800,
+    }
+
+def _derive_region(lat: float, _lon: float) -> str:
+    """Lightweight region label."""
+    if lat > 45: return "Northern Europe / Asia"
+    if lat > 20: return "North Region"
+    if lat > -20: return "Equatorial Region"
+    if lat > -45: return "South Region"
+    return "Southern Hemisphere"
+
+def _compute_direction(lat1: float, lon1: float, lat2: float, lon2: float) -> str:
+    """Compass direction of travel from (lat1,lon1) to (lat2,lon2)."""
+    import math
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    angle = math.degrees(math.atan2(dlon, dlat))
+    if -22.5 <= angle < 22.5:
+        return "North"
+    elif 22.5 <= angle < 67.5:
+        return "North-East"
+    elif 67.5 <= angle < 112.5:
+        return "East"
+    elif 112.5 <= angle < 157.5:
+        return "South-East"
+    elif angle >= 157.5 or angle < -157.5:
+        return "South"
+    elif -157.5 <= angle < -112.5:
+        return "South-West"
+    elif -112.5 <= angle < -67.5:
+        return "West"
+    else:
+        return "North-West"
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 @app.post("/score_transaction")
 def score_transaction(transaction: Transaction, background_tasks: BackgroundTasks):
     try:
-        # Convert input → DataFrame
+       
         data = transaction.model_dump()
-        df = pd.DataFrame([data])
 
-        # Enforce correct column order
+        # ===== STRICT SEPARATION: ML FEATURES vs USER CONTEXT =====
+        # Extract user context FIRST — these NEVER touch ML models
+        data.pop("user_id", None)
+        data.pop("latitude", None)
+        data.pop("longitude", None)
+
+        # ── Runtime enrichment: cycle user + generate location ──
+        txn_user_id = _cycle_user_id()
+        prev_lat, prev_lon, txn_lat, txn_lon = _generate_runtime_location(txn_user_id)
+
+        # Rule-based geo anomaly detection
+        geo = compute_geo_anomaly(prev_lat, prev_lon, txn_lat, txn_lon)
+        rule_flags = []
+        if geo["is_impossible"]:
+            rule_flags.append("IMPOSSIBLE_TRAVEL")
+        direction = _compute_direction(prev_lat, prev_lon, txn_lat, txn_lon)
+        # ───────────────────────────────────────────────────────────────────
+
+        # ML DataFrame — only V1-V28, Amount, Time (LOCKED)
+        df = pd.DataFrame([data])
         cols = ['Time'] + [f'V{i}' for i in range(1, 29)] + ['Amount']
         df = df[cols]
+        # =============================================================
 
         # Components passed to compute_risk_score
         components = {
@@ -207,19 +313,16 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         # Compute unified risk score
         
         # 1. Get history for Rules
-        # In a real app, user_id would come from the request. 
-        # Hardcoding 'user_demo' as per existing insert logic for now.
-        user_id = "user_demo" 
-        last_txn_time = get_user_last_txn_time(user_id)
+        last_txn_time = get_user_last_txn_time(txn_user_id)
 
         # 2. Evaluate Rules (Dynamic)
         rule_score, rule_details = RULE_ENGINE.evaluate(data, last_txn_time)
 
-        # 3. ML Models
+        # 3. ML Models (receives ONLY V1-V28, Amount, Time)
         ml_results = ml_pipeline.compute_risk_score(
             transaction_df=df,
             components=components,
-            weights={"xgb": 0.6, "iso": 0.2, "graph": 0.2}
+            weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
         )
 
         xgb_score = float(ml_results["xgb"])
@@ -228,9 +331,7 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         neighbors = ml_results["neighbors"]
 
         
-        # 4. Combine Scores (Simple Weighted Avg for now)
-        # You can tune this blend. 
-        # ML is powerful, but Rules are precise constraints.
+        # 4. Combine ML + Rules (UNCHANGED)
         final_risk = (
             0.5 * ml_results["final"] +
             0.5 * rule_score
@@ -240,6 +341,20 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         
         # Clip to [0, 1]
         risk_score = min(max(final_risk, 0.0), 1.0)
+        base_score = risk_score  # preserve original ML+Rules score
+
+        # ----- USER PROFILING + LOCATION INTELLIGENCE (SEPARATE CONTEXT LAYER) -----
+        user_data = user_risk.get_user_risk(
+            user_id=txn_user_id,
+            amount=data["Amount"],
+            latitude=txn_lat,
+            longitude=txn_lon,
+        )
+
+        # Blend: 75% ML base + 25% behavioral user risk
+        risk_score = base_score * 0.75 + user_data["user_risk"] * 0.25
+        risk_score = min(max(risk_score, 0.0), 1.0)
+        # ----- END USER PROFILING -----
 
         # SHAP explanation
         explanation = ml_pipeline.shap_explain_transaction(
@@ -261,7 +376,7 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
             VALUES (%s, %s, %s, %s, %s, NOW(), %s)
         """, (
             txn_id,
-            "user_demo",
+            txn_user_id,
             "device_demo",
             "127.0.0.1",
             data["Amount"],
@@ -298,7 +413,7 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
             txn_id,
             risk_score,
             decision,
-            "XGBoost-based scoring"
+            "XGBoost-based scoring + User Profiling"
         ))
 
         # Email Notification (Background Task)
@@ -308,6 +423,19 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         return {
             "txn_id": txn_id,
             "risk_score": risk_score,
+            "base_score": base_score,
+            "user_id": txn_user_id,
+            "user_risk": user_data["user_risk"],
+            "location_risk": user_data["location_risk"],
+            "geo_distance_km": user_data["geo_distance_km"],
+            "risk_tier": user_data["risk_tier"],
+            "txn_lat": txn_lat,
+            "txn_lon": txn_lon,
+            "prev_lat": prev_lat,
+            "prev_lon": prev_lon,
+            "direction": direction,
+            "geo": geo,
+            "rule_flags": rule_flags,
             "decision": decision,
             "explanation": explanation,
             "rule_details": rule_details,
@@ -325,9 +453,7 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --------------------------------------
-# DB VIEW ENDPOINTS
-# --------------------------------------
+
 @app.get("/transactions")
 def get_transactions():
     data = execute_query("""
@@ -452,6 +578,111 @@ def run_optimizer():
     run_optimization()
     return {"status": "success"}
 
+
+
+# --------------------------------------
+# DEMO: IMPOSSIBLE TRAVEL DETECTION
+# --------------------------------------
+import time as _time
+
+class LocationFraudRequest(BaseModel):
+    amount: float = 500.0
+    user_id: str = "user_mumbai"
+    lat1: float = 19.076
+    lon1: float = 72.877
+    lat2: float = 51.507
+    lon2: float = -0.127
+    time_gap_seconds: float = 3.0   # configurable time between transactions
+
+@app.post("/demo/location_fraud")
+def demo_location_fraud(req: LocationFraudRequest):
+    """
+    Demonstrates impossible travel detection with configurable time gap.
+    No actual sleeping — timestamps are simulated instantly.
+    """
+    now = _time.time()
+    gap = max(req.time_gap_seconds, 0.001)  # avoid div/0
+
+    # --- Transaction 1: set location at (now - gap) ---
+    user_risk.set_last_location(req.user_id, req.lat1, req.lon1, now - gap)
+
+    txn1_result = user_risk.get_user_risk(
+        user_id=req.user_id,
+        amount=req.amount,
+        latitude=req.lat1,
+        longitude=req.lon1,
+    )
+    # Restore the timestamp to the simulated past time (get_user_risk overwrites it)
+    user_risk.set_last_location(req.user_id, req.lat1, req.lon1, now - gap)
+
+    # --- Transaction 2: at current time ---
+    txn2_result = user_risk.get_user_risk(
+        user_id=req.user_id,
+        amount=req.amount,
+        latitude=req.lat2,
+        longitude=req.lon2,
+    )
+
+    # --- Travel Analysis ---
+    distance_km = user_risk.haversine_km(req.lat1, req.lon1, req.lat2, req.lon2)
+    time_hours = gap / 3600.0
+    implied_speed_kmh = distance_km / time_hours if time_hours > 0 else float('inf')
+
+    # Transport feasibility
+    transport_modes = [
+        {"mode": "car",   "emoji": "🚗", "label": "Car (~120 km/h)",           "max_speed": 120,  "feasible": implied_speed_kmh <= 120},
+        {"mode": "train", "emoji": "🚄", "label": "High-Speed Rail (~300 km/h)", "max_speed": 300, "feasible": implied_speed_kmh <= 300},
+        {"mode": "plane", "emoji": "✈️",  "label": "Commercial Flight (~900 km/h)", "max_speed": 900, "feasible": implied_speed_kmh <= 900},
+    ]
+
+    if implied_speed_kmh > 900:
+        verdict = "IMPOSSIBLE"
+    elif implied_speed_kmh > 300:
+        verdict = "SUSPICIOUS"
+    elif implied_speed_kmh > 120:
+        verdict = "UNLIKELY"
+    else:
+        verdict = "FEASIBLE"
+
+    fraud_detected = txn2_result["location_risk"] >= 0.3
+
+    return {
+        "txn_1": {
+            "location": {"lat": req.lat1, "lon": req.lon1},
+            **txn1_result,
+        },
+        "txn_2": {
+            "location": {"lat": req.lat2, "lon": req.lon2},
+            **txn2_result,
+        },
+        "travel_analysis": {
+            "distance_km": round(distance_km, 2),
+            "time_gap_seconds": gap,
+            "time_gap_display": _format_time(gap),
+            "implied_speed_kmh": round(implied_speed_kmh, 1),
+            "transport_modes": transport_modes,
+            "verdict": verdict,
+        },
+        "fraud_detected": fraud_detected,
+    }
+
+
+def _format_time(seconds: float) -> str:
+    """Human-readable time display."""
+    if seconds < 60:
+        return f"{seconds:.0f} seconds"
+    elif seconds < 3600:
+        return f"{seconds / 60:.1f} minutes"
+    else:
+        return f"{seconds / 3600:.1f} hours"
+
+
+# --------------------------------------
+# USER PROFILES ENDPOINT (for frontend)
+# --------------------------------------
+@app.get("/user_profiles")
+def get_user_profiles():
+    return user_risk.USER_PROFILES
 
 
 # --------------------------------------

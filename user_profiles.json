@@ -1,0 +1,47 @@
+{
+    "user_demo": {
+        "name": "Demo User",
+        "city": "New York",
+        "avg_amount": 150.0,
+        "std_amount": 80.0,
+        "fraud_rate": 0.02,
+        "usual_lat": 40.7128,
+        "usual_lon": -74.006
+    },
+    "user_mumbai": {
+        "name": "Arjun Mehta",
+        "city": "Mumbai",
+        "avg_amount": 200.0,
+        "std_amount": 120.0,
+        "fraud_rate": 0.01,
+        "usual_lat": 19.076,
+        "usual_lon": 72.8777
+    },
+    "user_nyc": {
+        "name": "Sarah Chen",
+        "city": "New York",
+        "avg_amount": 350.0,
+        "std_amount": 200.0,
+        "fraud_rate": 0.03,
+        "usual_lat": 40.7128,
+        "usual_lon": -74.006
+    },
+    "user_london": {
+        "name": "James Wright",
+        "city": "London",
+        "avg_amount": 500.0,
+        "std_amount": 300.0,
+        "fraud_rate": 0.05,
+        "usual_lat": 51.5074,
+        "usual_lon": -0.1278
+    },
+    "user_tokyo": {
+        "name": "Yuki Tanaka",
+        "city": "Tokyo",
+        "avg_amount": 180.0,
+        "std_amount": 90.0,
+        "fraud_rate": 0.008,
+        "usual_lat": 35.6762,
+        "usual_lon": 139.6503
+    }
+}

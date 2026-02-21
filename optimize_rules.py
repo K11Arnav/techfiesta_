@@ -15,8 +15,7 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
 
-# OpenRouter / Cerebras Configuration
-# Using OpenRouter as default example, can serve Cerebras too
+
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL")
@@ -24,9 +23,7 @@ LLM_MODEL = os.getenv("LLM_MODEL")
 CONFIG_PATH = "fraud_rules.json"
 SUGGESTIONS_PATH = "suggestions.json"
 
-# --------------------------------------
-# DB CONNECTION
-# --------------------------------------
+
 def get_flagged_transactions():
     """Fetches details of recent transactions flagged as BLOCK or REVIEW."""
     try:
@@ -37,8 +34,7 @@ def get_flagged_transactions():
             password=DB_PASSWORD
         )
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Fetch flagged transactions with their details
-            # Increased limit to 100 to capture more data context
+           
             cur.execute("""
                 SELECT 
                     t.txn_id,
@@ -125,6 +121,8 @@ def run_optimization():
             base_url=LLM_BASE_URL,
             api_key=LLM_API_KEY
         )
+        
+
         completion = client.chat.completions.create(
             model=LLM_MODEL,
             messages=[

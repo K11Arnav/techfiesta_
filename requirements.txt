@@ -30,3 +30,6 @@ psycopg2-binary
 
 # LLM Integration
 openai
+
+# Location Intelligence
+geopy>=2.4.0
