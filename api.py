@@ -109,6 +109,58 @@ def load_or_train_artifacts():
 
 MODEL, SCALER, EXPLAINER, ISO_MODEL, ISO_SCALER, ISO_META, GRAPH_MODEL, GRAPH_REF = load_or_train_artifacts()
 
+# --- LRU CACHING FOR ML RESULTS ---
+from functools import lru_cache
+
+FEATURE_COLS = ['Time'] + [f'V{i}' for i in range(1, 29)] + ['Amount']
+
+# SAFE: only for debugging hit/miss
+_cache_seen_keys = set() 
+
+def get_feature_key(data: dict) -> str:
+    """Creates a stable JSON string for LRU cache key."""
+    try:
+        filtered = {k: float(data[k]) for k in FEATURE_COLS}
+        return json.dumps(filtered, sort_keys=True)
+    except (KeyError, ValueError, TypeError):
+        return None
+
+@lru_cache(maxsize=200)
+def _get_ml_results_cached(feature_key: str):
+    """Heavy ML + SHAP computation, cached by JSON feature set."""
+    print("🔥 CACHE MISS → running ML + SHAP")
+    # Reconstruct dict from JSON key
+    feature_dict = json.loads(feature_key)
+    df = pd.DataFrame([feature_dict])
+    df = df[FEATURE_COLS] # Fix order mismatch for XGBoost/SHAP
+
+    
+    components = {
+        "xgb": {"model": MODEL, "scaler": SCALER},
+        "iso": {"model": ISO_MODEL, "scaler": ISO_SCALER, "score_min": ISO_META["score_min"], "score_max": ISO_META["score_max"]},
+        "graph": {"model": GRAPH_MODEL, "reference_data": GRAPH_REF},
+        "reputation": {},
+        "rules": {}
+    }
+
+    # 1. Primary ML Scoring
+    ml_results = ml_pipeline.compute_risk_score(
+        transaction_df=df,
+        components=components,
+        weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
+    )
+
+    # 2. SHAP Explanation
+    explanation = ml_pipeline.shap_explain_transaction(
+        model=MODEL,
+        scaler=SCALER,
+        explainer=EXPLAINER,
+        transaction_df=df,
+        top_k=5
+    )
+    
+    return ml_results, explanation
+
 
 
 
@@ -320,35 +372,67 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         # 1. Get history for Rules
         last_txn_time = get_user_last_txn_time(txn_user_id)
 
-        # 2. Evaluate Rules (Dynamic)
+        # 2. Evaluate Rules (Dynamic - UNCACHED)
         rule_score, rule_details = RULE_ENGINE.evaluate(data, last_txn_time)
 
-        # 3. ML Models (receives ONLY V1-V28, Amount, Time)
-        ml_results = ml_pipeline.compute_risk_score(
-            transaction_df=df,
-            components=components,
-            weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
-        )
+        # 3. ML Models (Cached Computation)
+        import time
+        start_ml = time.time()
+        
+        feature_key = get_feature_key(data)
+        if feature_key:
+            if feature_key in _cache_seen_keys:
+                print(f"⚡ CACHE HIT | Key: {feature_key[:30]}...")
+            else:
+                print(f"❌ CACHE MISS (first time) | Key: {feature_key[:30]}...")
+                _cache_seen_keys.add(feature_key)
+            
+            ml_results, explanation = _get_ml_results_cached(feature_key)
+            print(f"📦 Cache size: {len(_cache_seen_keys)} / 200")
+        else:
+            print("⚠️ CACHE BYPASSED (invalid key)")
+            # Fallback if key generation fails (e.g. missing fields)
+            df = pd.DataFrame([data])
+            df = df[['Time'] + [f'V{i}' for i in range(1, 29)] + ['Amount']]
+            components = {
+                "xgb": {"model": MODEL, "scaler": SCALER},
+                "iso": {"model": ISO_MODEL, "scaler": ISO_SCALER, "score_min": ISO_META["score_min"], "score_max": ISO_META["score_max"]},
+                "graph": {"model": GRAPH_MODEL, "reference_data": GRAPH_REF},
+                "reputation": {},
+                "rules": {}
+            }
+            ml_results = ml_pipeline.compute_risk_score(
+                transaction_df=df,
+                components=components,
+                weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
+            )
+            explanation = ml_pipeline.shap_explain_transaction(
+                model=MODEL,
+                scaler=SCALER,
+                explainer=EXPLAINER,
+                transaction_df=df,
+                top_k=5
+            )
 
         xgb_score = float(ml_results["xgb"])
         iso_score = float(ml_results["iso"])
         graph_score = float(ml_results["graph"])
         neighbors = ml_results["neighbors"]
 
-        
+        end_ml = time.time()
+        print(f"⏱ ML compute time: {end_ml - start_ml:.4f}s")
+
         # 4. Combine ML + Rules (UNCHANGED)
         final_risk = (
             0.5 * ml_results["final"] +
             0.5 * rule_score
         )
 
-       
-        
         # Clip to [0, 1]
         risk_score = min(max(final_risk, 0.0), 1.0)
         base_score = risk_score  # preserve original ML+Rules score
 
-        # ----- USER PROFILING + LOCATION INTELLIGENCE (SEPARATE CONTEXT LAYER) -----
+        # ----- USER PROFILING + LOCATION INTELLIGENCE (SEPARATE CONTEXT LAYER - UNCACHED) -----
         user_data = user_risk.get_user_risk(
             user_id=txn_user_id,
             amount=data["Amount"],
@@ -360,15 +444,6 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         risk_score = base_score * 0.75 + user_data["user_risk"] * 0.25
         risk_score = min(max(risk_score, 0.0), 1.0)
         # ----- END USER PROFILING -----
-
-        # SHAP explanation
-        explanation = ml_pipeline.shap_explain_transaction(
-            model=MODEL,
-            scaler=SCALER,
-            explainer=EXPLAINER,
-            transaction_df=df,
-            top_k=5
-        )
 
         # Generate transaction ID
         from uuid import uuid4
