@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import List, Any
 import pandas as pd
@@ -14,18 +14,21 @@ import psycopg2
 import psycopg2.extras
 
  
-conn = psycopg2.connect(
-    host=os.getenv("DB_HOST"),
-    database=os.getenv("DB_NAME"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD")
-)
-
 def execute_query(query, params=None):
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(query, params)
-        conn.commit()
-        return cur.fetchall() if cur.description else None
+    """Establishes a new DB connection for each query to prevent InterfaceError."""
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD")
+    )
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query, params)
+            conn.commit()
+            return cur.fetchall() if cur.description else None
+    finally:
+        conn.close()
 
 
 
@@ -36,6 +39,7 @@ from fraud_rules import RuleEngine
 from explainability_v2 import build_explainability_v2
 from email_notifier import EmailNotifier
 import user_risk
+import auth as auth_module
 
 MODEL_PATH = "model.pkl"
 SCALER_PATH = "scaler.pkl"
@@ -469,8 +473,36 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
 
 
 
+# --------------------------------------
+# AUTHENTICATION
+# --------------------------------------
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/login")
+def login(req: LoginRequest):
+    """Authenticate user and return JWT + role."""
+    rows = execute_query(
+        "SELECT id, email, password_hash, role FROM fraud.users WHERE email = %s",
+        (req.email,),
+    )
+    if not rows:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    user = rows[0]
+    if req.password != user["password_hash"]:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = auth_module.create_token(user["id"], user["role"])
+    return {"access_token": token, "role": user["role"]}
+
+@app.get("/me")
+def get_me(user: dict = Depends(auth_module.get_current_user)):
+    """Return current authenticated user info."""
+    return {"user_id": user["user_id"], "role": user["role"]}
+
+
 @app.get("/transactions")
-def get_transactions():
+def get_transactions(user: dict = Depends(auth_module.get_current_user)):
     data = execute_query("""
         SELECT * FROM fraud.transactions_raw
         ORDER BY timestamp DESC
@@ -480,13 +512,29 @@ def get_transactions():
         try:
             with open("src/data/test_transactions.json", "r") as f:
                 raw_test = json.load(f)
-                return [{"txn_id": f"mock_{i}", "amount": x["Amount"], "timestamp": "2024-01-01", "raw_payload": x} for i, x in enumerate(raw_test[:50])]
-        except:
-            return []
+                # Ensure domain is flattened to top level for RBAC check
+                data = [
+                    {
+                        "txn_id": f"mock_{i}", 
+                        "amount": x["Amount"], 
+                        "timestamp": "2024-01-01", 
+                        "transaction_domain": x.get("transaction_domain", "retail"),
+                        "raw_payload": x
+                    } 
+                    for i, x in enumerate(raw_test[:100])
+                ]
+        except Exception as e:
+            print(f"Fallback error: {e}")
+            data = []
+
+    # RBAC: filter by allowed domains (admin sees all)
+    allowed = auth_module.get_allowed_domains(user["role"])
+    if user["role"] != "admin" and data:
+        data = [r for r in data if r.get("transaction_domain") in allowed]
     return data
 
 @app.get("/decisions")
-def get_decisions():
+def get_decisions(user: dict = Depends(auth_module.get_current_user)):
     data = execute_query("""
         SELECT * FROM fraud.decisions
         ORDER BY decision_time DESC
@@ -496,9 +544,24 @@ def get_decisions():
         try:
             with open("src/data/test_transactions.json", "r") as f:
                 raw_test = json.load(f)
-                return [{"txn_id": f"mock_{i}", "final_risk": 0.1 + (i % 10) * 0.1, "decision": "ALLOW" if (i % 10) < 8 else "BLOCK", "decision_time": "2024-01-01"} for i in range(50)]
+                # Map mock decisions and include domain for filtering
+                data = [
+                    {
+                        "txn_id": f"mock_{i}", 
+                        "final_risk": 0.1 + (i % 10) * 0.1, 
+                        "decision": "ALLOW" if (i % 10) < 8 else "BLOCK", 
+                        "transaction_domain": raw_test[i % len(raw_test)].get("transaction_domain", "retail"),
+                        "decision_time": "2024-01-01"
+                    } 
+                    for i in range(100)
+                ]
         except:
-            return []
+            data = []
+
+    # RBAC: filter by allowed domains (admin sees all)
+    allowed = auth_module.get_allowed_domains(user["role"])
+    if user["role"] != "admin" and data:
+        data = [r for r in data if r.get("transaction_domain") in allowed]
     return data
 
 @app.get("/transaction_details/{txn_id}")
@@ -551,7 +614,9 @@ class ApprovedSuggestion(BaseModel):
     proposed_value: Any
 
 @app.post("/apply_rules")
-def apply_rules(approved_list: List[ApprovedSuggestion]):
+def apply_rules(approved_list: List[ApprovedSuggestion], user: dict = Depends(auth_module.get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
     try:
         # 1. Load current rules
         with open("fraud_rules.json", "r") as f:
@@ -589,7 +654,9 @@ def apply_rules(approved_list: List[ApprovedSuggestion]):
 from optimize_rules import run_optimization
 
 @app.post("/run_optimizer")
-def run_optimizer():
+def run_optimizer(user: dict = Depends(auth_module.get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
     run_optimization()
     return {"status": "success"}
 

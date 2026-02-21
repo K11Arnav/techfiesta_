@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from '../contexts/AuthContext';
 import {
     MapContainer,
     TileLayer,
@@ -149,6 +150,7 @@ function getDefaultDateTime(offsetMinutes: number = 0): string {
 
 export default function LocationFraudDemo() {
     const navigate = useNavigate();
+    const { authFetch } = useAuth();
     const [selectedUser, setSelectedUser] = useState(DEMO_USERS[0]);
     const [amount, setAmount] = useState(500);
 
@@ -208,7 +210,7 @@ export default function LocationFraudDemo() {
         }
 
         try {
-            const res = await fetch("http://localhost:8000/demo/location_fraud", {
+            const res = await authFetch("http://localhost:8000/demo/location_fraud", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -395,8 +397,8 @@ export default function LocationFraudDemo() {
                                     key={c.name}
                                     onClick={() => applyPreset(1, c)}
                                     className={`px-2 py-1 text-[11px] rounded-md border transition-all ${txn1City === c.name
-                                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                                            : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                                        : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
                                         }`}
                                 >
                                     {c.name}
@@ -465,8 +467,8 @@ export default function LocationFraudDemo() {
                                     key={c.name}
                                     onClick={() => applyPreset(2, c)}
                                     className={`px-2 py-1 text-[11px] rounded-md border transition-all ${txn2City === c.name
-                                            ? "bg-red-500/15 border-red-500/40 text-red-300"
-                                            : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                                        ? "bg-red-500/15 border-red-500/40 text-red-300"
+                                        : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
                                         }`}
                                 >
                                     {c.name}
@@ -680,8 +682,8 @@ export default function LocationFraudDemo() {
                                                 <div
                                                     key={t.mode}
                                                     className={`flex items-center justify-between px-3 py-2 rounded-lg border ${t.feasible
-                                                            ? "bg-emerald-500/5 border-emerald-500/20"
-                                                            : "bg-red-500/5 border-red-500/20"
+                                                        ? "bg-emerald-500/5 border-emerald-500/20"
+                                                        : "bg-red-500/5 border-red-500/20"
                                                         }`}
                                                 >
                                                     <span className="text-xs text-zinc-300">

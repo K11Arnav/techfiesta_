@@ -40,6 +40,25 @@ demo_df = (
       .sample(frac=1, random_state=42)
 )
 
+# --- DOMAIN LABELLING (RBAC metadata) ---
+def assign_domain(row):
+    amt = row["Amount"]
+    r = np.random.rand()
+    
+    if amt > 2000 and r < 0.7:
+        return "corporate"
+    elif amt < 50 and r < 0.8:
+        return "card"
+    elif r < 0.2:
+        return "international"
+    elif r < 0.25:
+        return "merchant"
+    else:
+        return "retail"
+
+import numpy as np
+demo_df["transaction_domain"] = demo_df.apply(assign_domain, axis=1)
+
 # Drop label before frontend
 demo_df = demo_df.drop(columns=["Class"])
 

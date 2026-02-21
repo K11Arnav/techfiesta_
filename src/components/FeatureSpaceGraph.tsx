@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 // @ts-ignore – umap-js ships without TypeScript types
 import { UMAP } from "umap-js";
+import { useAuth } from '../contexts/AuthContext';
 
 interface RawTransactionRow {
   txn_id: string;
@@ -72,6 +73,7 @@ export default function FeatureSpaceGraph() {
   const [selectedPoint, setSelectedPoint] = useState<GraphPoint | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const { authFetch } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -79,8 +81,8 @@ export default function FeatureSpaceGraph() {
     async function load() {
       try {
         const [txRes, decRes] = await Promise.all([
-          fetch("http://localhost:8000/transactions"),
-          fetch("http://localhost:8000/decisions"),
+          authFetch("http://localhost:8000/transactions"),
+          authFetch("http://localhost:8000/decisions"),
         ]);
 
         const txData: RawTransactionRow[] = await txRes.json();
@@ -232,7 +234,7 @@ export default function FeatureSpaceGraph() {
   const fetchDetails = async (txn_id: string) => {
     setLoadingDetails(true);
     try {
-      const res = await fetch(`http://localhost:8000/transaction_details/${txn_id}`);
+      const res = await authFetch(`http://localhost:8000/transaction_details/${txn_id}`);
       const data = await res.json();
       setSelectedDetails(data);
     } catch (e) {

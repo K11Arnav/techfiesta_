@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 
 import Navigation from './components/Navigation'
 import Hero from './components/Hero'
@@ -16,9 +17,18 @@ import ResultsPage from './components/ResultsPage'
 import RuleApprovalSection from './components/RuleApprovalSection'
 import FeatureSpaceGraph from './components/FeatureSpaceGraph'
 import LocationFraudDemo from './components/LocationFraudDemo'
+import LoginPage from './components/LoginPage'
 
-function App() {
+// ── Protected Route wrapper ──────────────────────────────────────────────────
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function AppRoutes() {
   const [scrolled, setScrolled] = useState(false)
+  const { isAuthenticated } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,13 +39,19 @@ function App() {
   }, [])
 
   return (
-    <Router>
-      <Routes>
+    <Routes>
 
-        {/* Landing Page */}
-        <Route
-          path="/"
-          element={
+      {/* Login Page */}
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+      />
+
+      {/* Landing Page */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
             <div className="min-h-screen bg-zinc-950">
               <Navigation scrolled={scrolled} />
               <main>
@@ -51,19 +67,29 @@ function App() {
               </main>
               <Footer />
             </div>
-          }
-        />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* New Input Page */}
-        <Route path="/input" element={<InputPage />} />
+      {/* New Input Page */}
+      <Route path="/input" element={<ProtectedRoute><InputPage /></ProtectedRoute>} />
 
-        {/* New Results Page */}
-        <Route path="/results" element={<ResultsPage />} />
+      {/* New Results Page */}
+      <Route path="/results" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
 
-        {/* Location Fraud Demo */}
-        <Route path="/location-demo" element={<LocationFraudDemo />} />
+      {/* Location Fraud Demo */}
+      <Route path="/location-demo" element={<ProtectedRoute><LocationFraudDemo /></ProtectedRoute>} />
 
-      </Routes>
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </Router>
   )
 }

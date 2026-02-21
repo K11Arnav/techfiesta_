@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, ArrowRight, ShieldCheck, Loader2, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from '../contexts/AuthContext';
 
 interface Suggestion {
     target_rule: string;
@@ -17,15 +18,19 @@ interface ApprovedSuggestion {
 }
 
 export default function RuleApprovalSection() {
+    const { authFetch, role } = useAuth();
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [loading, setLoading] = useState(true);
     const [applying, setApplying] = useState(false);
     const [optimizing, setOptimizing] = useState(false);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+    // Hide for non-admin roles
+    if (role !== 'admin') return null;
+
     useEffect(() => {
         const fetchSuggestions = () => {
-            fetch("http://localhost:8000/suggestions")
+            authFetch("http://localhost:8000/suggestions")
                 .then((res) => res.json())
                 .then((data) => {
                     setSuggestions(data);
@@ -55,7 +60,7 @@ export default function RuleApprovalSection() {
                 proposed_value: s.proposed_value,
             }));
 
-            const res = await fetch("http://localhost:8000/apply_rules", {
+            const res = await authFetch("http://localhost:8000/apply_rules", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -79,7 +84,7 @@ export default function RuleApprovalSection() {
         setOptimizing(true);
         setSuccessMsg(null);
         try {
-            const res = await fetch("http://localhost:8000/run_optimizer", {
+            const res = await authFetch("http://localhost:8000/run_optimizer", {
                 method: "POST",
             });
 

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from '../contexts/AuthContext';
 
 export default function InputPage() {
   const [time, setTime] = useState("");
   const [amount, setAmount] = useState("");
   const navigate = useNavigate();
+  const { authFetch } = useAuth();
 
   const submitTransaction = async () => {
     if (!time || !amount) {
@@ -12,7 +14,7 @@ export default function InputPage() {
       return;
     }
 
-    const response = await fetch("http://localhost:8000/score_transaction", {
+    const response = await authFetch("http://localhost:8000/score_transaction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

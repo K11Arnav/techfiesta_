@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from '../contexts/AuthContext';
 // @ts-ignore – umap-js graph component is JS-only but safe to import
 import FeatureSpaceGraph from "./FeatureSpaceGraph";
 
@@ -15,9 +16,10 @@ export default function ResultsPage() {
   const [results, setResults] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { authFetch } = useAuth();
 
   useEffect(() => {
-    fetch("http://localhost:8000/decisions")
+    authFetch("http://localhost:8000/decisions")
       .then((res) => res.json())
       .then((data) => {
         setResults(data);
@@ -64,13 +66,12 @@ export default function ResultsPage() {
                     </td>
 
                     <td
-                      className={`px-4 py-3 font-bold ${
-                        row.decision === "BLOCK"
+                      className={`px-4 py-3 font-bold ${row.decision === "BLOCK"
                           ? "text-red-400"
                           : row.decision === "REVIEW"
-                          ? "text-yellow-400"
-                          : "text-green-400"
-                      }`}
+                            ? "text-yellow-400"
+                            : "text-green-400"
+                        }`}
                     >
                       {row.decision}
                     </td>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Menu, X, MapPin } from 'lucide-react'
+import { Menu, X, MapPin, LogOut, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 interface NavigationProps {
   scrolled: boolean
@@ -9,6 +10,7 @@ interface NavigationProps {
 export default function Navigation({ scrolled }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const { role, logout, isAuthenticated } = useAuth()
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
@@ -21,8 +23,8 @@ export default function Navigation({ scrolled }: NavigationProps) {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-          ? 'bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50'
-          : 'bg-transparent'
+        ? 'bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50'
+        : 'bg-transparent'
         }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,12 +65,29 @@ export default function Navigation({ scrolled }: NavigationProps) {
               <MapPin className="w-3.5 h-3.5" />
               Location Demo
             </button>
-            <button
-              onClick={() => scrollToSection('cta')}
-              className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-all hover:scale-105 font-medium text-sm glow-emerald-hover ripple"
-            >
-              Try Demo
-            </button>
+
+            {isAuthenticated ? (
+              <div className="flex items-center gap-4 ml-4 pl-4 border-l border-zinc-800">
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                  <User className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">{role}</span>
+                </div>
+                <button
+                  onClick={() => { logout(); navigate('/login'); }}
+                  className="p-2 text-zinc-400 hover:text-rose-400 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => scrollToSection('cta')}
+                className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-all hover:scale-105 font-medium text-sm glow-emerald-hover ripple"
+              >
+                Try Demo
+              </button>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -117,12 +136,22 @@ export default function Navigation({ scrolled }: NavigationProps) {
               <MapPin className="w-4 h-4" />
               Location Demo
             </button>
-            <button
-              onClick={() => scrollToSection('cta')}
-              className="block w-full text-left px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-colors"
-            >
-              Try Demo
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={() => { logout(); navigate('/login'); setMobileMenuOpen(false); }}
+                className="flex items-center gap-2 w-full text-left px-4 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout ({role})
+              </button>
+            ) : (
+              <button
+                onClick={() => scrollToSection('cta')}
+                className="block w-full text-left px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-colors"
+              >
+                Try Demo
+              </button>
+            )}
           </div>
         </div>
       )}

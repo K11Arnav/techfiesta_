@@ -2,6 +2,7 @@ import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock, MapPin } from 'luc
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import GradientBlinds from './GradientBlinds'
 
 interface Transaction {
@@ -22,6 +23,19 @@ const mockTransactions: Transaction[] = [
 export default function Hero() {
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions)
   const navigate = useNavigate()
+  const { role } = useAuth()
+
+  const getRoleTitle = () => {
+    switch (role) {
+      case 'admin': return 'Global Fraud Command Center';
+      case 'retail': return 'Retail Fraud Detection Hub';
+      case 'corporate': return 'Corporate Risk Monitor';
+      case 'merchant': return 'Merchant Security Portal';
+      case 'card': return 'Card Fraud Analysis Board';
+      case 'international': return 'International Threat Shield';
+      default: return 'Advanced Fraud Detection';
+    }
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -94,15 +108,10 @@ export default function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="text-6xl md:text-7xl font-bold tracking-tighter mb-6"
+            className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500 leading-tight"
           >
-            <span className="bg-gradient-to-br from-zinc-50 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              Stop Fraud in
-            </span>
-            <br />
-            <span className="bg-gradient-to-br from-emerald-400 via-cyan-400 to-emerald-300 bg-clip-text text-transparent">
-              Real-Time
-            </span>
+            Real-time <span className="text-emerald-500">Intelligent</span> <br />
+            {getRoleTitle()}
           </motion.h1>
 
           <motion.p

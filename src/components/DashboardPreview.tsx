@@ -3,6 +3,7 @@ import { AlertTriangle, Play, Pause, ShieldCheck, ShieldAlert, Activity, Gauge, 
 import { motion, AnimatePresence } from 'framer-motion'
 import testTransactions from '../data/test_transactions.json'
 import TravelAnomalyPanel, { type TravelAnomaly } from './TravelAnomalyPanel'
+import { useAuth } from '../contexts/AuthContext'
 
 interface SHAPFeature {
   feature: string
@@ -63,6 +64,7 @@ interface TransactionRecord {
 
 
 export default function DashboardPreview() {
+  const { authFetch, role } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null)
@@ -130,7 +132,7 @@ export default function DashboardPreview() {
 
     try {
       // Send raw Kaggle txn — backend handles user cycling + location generation
-      const response = await fetch('http://localhost:8000/score_transaction', {
+      const response = await authFetch('http://localhost:8000/score_transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(txn),
@@ -229,8 +231,11 @@ export default function DashboardPreview() {
               <div className="w-3 h-3 rounded-full bg-amber-500"></div>
               <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
             </div>
-            <div className="flex-1 text-center">
+            <div className="flex-1 text-center flex items-center justify-center gap-3">
               <span className="text-xs text-zinc-400 font-medium">CyberGuard AI Monitor</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-zinc-800 border border-zinc-700 text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">
+                {role} mode
+              </span>
             </div>
             <div className="w-12"></div>
           </div>
