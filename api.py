@@ -128,6 +128,42 @@ def get_feature_key(data: dict) -> str:
     except (KeyError, ValueError, TypeError):
         return None
 
+# --- MODULAR ML SCORING HELPERS ---
+
+def get_xgb_score(df: pd.DataFrame) -> float:
+    """Individual XGBoost scoring helper."""
+    components = {"xgb": {"model": MODEL, "scaler": SCALER}}
+    results = ml_pipeline.compute_risk_score(df, components, weights={"xgb": 1.0})
+    return float(results["xgb"])
+
+def get_iso_score(df: pd.DataFrame) -> float:
+    """Individual Isolation Forest scoring helper."""
+    components = {"iso": {"model": ISO_MODEL, "scaler": ISO_SCALER, "score_min": ISO_META["score_min"], "score_max": ISO_META["score_max"]}}
+    results = ml_pipeline.compute_risk_score(df, components, weights={"iso": 1.0})
+    return float(results["iso"])
+
+def get_graph_score(df: pd.DataFrame) -> float:
+    """Individual Graph Behavior scoring helper."""
+    components = {"graph": {"model": GRAPH_MODEL, "reference_data": GRAPH_REF}}
+    results = ml_pipeline.compute_risk_score(df, components, weights={"graph": 1.0})
+    return float(results["graph"])
+
+def compute_combined_ml_score(df: pd.DataFrame) -> dict:
+    """Combines all ML models using standard production weights."""
+    components = {
+        "xgb": {"model": MODEL, "scaler": SCALER},
+        "iso": {"model": ISO_MODEL, "scaler": ISO_SCALER, "score_min": ISO_META["score_min"], "score_max": ISO_META["score_max"]},
+        "graph": {"model": GRAPH_MODEL, "reference_data": GRAPH_REF},
+        "reputation": {},
+        "rules": {}
+    }
+    ml_results = ml_pipeline.compute_risk_score(
+        transaction_df=df,
+        components=components,
+        weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
+    )
+    return ml_results
+
 @lru_cache(maxsize=200)
 def _get_ml_results_cached(feature_key: str):
     """Heavy ML + SHAP computation, cached by JSON feature set."""
@@ -147,11 +183,7 @@ def _get_ml_results_cached(feature_key: str):
     }
 
     # 1. Primary ML Scoring
-    ml_results = ml_pipeline.compute_risk_score(
-        transaction_df=df,
-        components=components,
-        weights={"xgb": 0.8, "iso": 0.1, "graph": 0.1}
-    )
+    ml_results = compute_combined_ml_score(df)
 
     # 2. SHAP Explanation
     explanation = ml_pipeline.shap_explain_transaction(
@@ -216,6 +248,31 @@ class Transaction(BaseModel):
     user_id: str = "user_demo"
     latitude: float | None = None
     longitude: float | None = None
+
+
+# --------------------------------------
+# INDIVIDUAL MODEL ENDPOINTS (Modular)
+# --------------------------------------
+@app.post("/score/xgb")
+def score_xgb(txn: Transaction):
+    data = txn.dict()
+    df = pd.DataFrame([data])
+    df = df[FEATURE_COLS]
+    return {"score": get_xgb_score(df)}
+
+@app.post("/score/iso")
+def score_iso(txn: Transaction):
+    data = txn.dict()
+    df = pd.DataFrame([data])
+    df = df[FEATURE_COLS]
+    return {"score": get_iso_score(df)}
+
+@app.post("/score/graph")
+def score_graph(txn: Transaction):
+    data = txn.dict()
+    df = pd.DataFrame([data])
+    df = df[FEATURE_COLS]
+    return {"score": get_graph_score(df)}
 
 
 
