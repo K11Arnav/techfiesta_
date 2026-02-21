@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { AlertTriangle, Play, Pause, ShieldCheck, ShieldAlert, Activity, Gauge, FileText } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import testTransactions from '../data/test_transactions.json'
@@ -67,6 +67,15 @@ export default function DashboardPreview() {
   const { authFetch, role } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isStreaming, setIsStreaming] = useState(false)
+  // ── DATA FILTERING ──
+  const filteredTransactions = useMemo(() => {
+    return testTransactions.filter(txn => {
+      if (role === 'admin') return true
+      // Simple string match for RBAC domain labeling
+      return txn.transaction_domain === role
+    })
+  }, [role])
+
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null)
 
   // High-risk alerts
@@ -116,7 +125,7 @@ export default function DashboardPreview() {
     // Use ref to check live streaming state (avoids stale closure)
     if (!isStreamingRef.current || isProcessingRef.current) return
 
-    if (indexRef.current >= testTransactions.length) {
+    if (indexRef.current >= filteredTransactions.length) {
       if (streamRef.current) {
         clearInterval(streamRef.current)
         streamRef.current = null
@@ -128,7 +137,7 @@ export default function DashboardPreview() {
 
     isProcessingRef.current = true
 
-    const txn = testTransactions[indexRef.current]
+    const txn = filteredTransactions[indexRef.current]
 
     try {
       // Send raw Kaggle txn — backend handles user cycling + location generation
@@ -246,7 +255,7 @@ export default function DashboardPreview() {
               <div className="flex items-center gap-6">
                 <button
                   onClick={() => {
-                    if (indexRef.current >= testTransactions.length) {
+                    if (indexRef.current >= filteredTransactions.length) {
                       indexRef.current = 0
                       setCurrentIndex(0)
                       setStats({ processed: 0, flagged: 0, verified: 0 })
