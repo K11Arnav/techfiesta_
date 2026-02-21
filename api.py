@@ -1,4 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi.responses import StreamingResponse
+import csv
+import io
 from pydantic import BaseModel
 from typing import List, Any
 import pandas as pd
@@ -840,6 +843,50 @@ def _format_time(seconds: float) -> str:
 @app.get("/user_profiles")
 def get_user_profiles():
     return user_risk.USER_PROFILES
+
+
+# --------------------------------------
+# EXPORT FRAUD CSV (with RBAC)
+# --------------------------------------
+@app.get("/export/fraud-csv")
+def export_fraud_csv():
+    try:
+        query = """
+        SELECT
+            t.txn_id,
+            t.user_id,
+            t.amount,
+            t.timestamp,
+            d.final_risk,
+            d.decision,
+            t.raw_payload ->> 'transaction_domain' AS transaction_domain
+        FROM fraud.transactions_raw t
+        JOIN fraud.decisions d ON t.txn_id = d.txn_id
+        WHERE d.decision IN ('BLOCK', 'REVIEW')
+        ORDER BY t.timestamp DESC;
+        """
+        rows = execute_query(query)
+        
+        if not rows:
+            # Create empty DF with columns if no data
+            cols = ["txn_id", "user_id", "amount", "timestamp", "final_risk", "decision", "transaction_domain"]
+            df = pd.DataFrame(columns=cols)
+        else:
+            df = pd.DataFrame(rows)
+
+        stream = io.StringIO()
+        df.to_csv(stream, index=False)
+        
+        return StreamingResponse(
+            iter([stream.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=fraud_report.csv"
+            }
+        )
+    except Exception as e:
+        print(f"Export Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # --------------------------------------

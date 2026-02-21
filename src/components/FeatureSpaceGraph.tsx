@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 // @ts-ignore – umap-js ships without TypeScript types
 import { UMAP } from "umap-js";
+import { Activity } from "lucide-react";
 import { useAuth } from '../contexts/AuthContext';
 
 interface RawTransactionRow {
@@ -73,6 +74,7 @@ export default function FeatureSpaceGraph() {
   const [selectedPoint, setSelectedPoint] = useState<GraphPoint | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { authFetch } = useAuth();
 
   useEffect(() => {
@@ -184,13 +186,18 @@ export default function FeatureSpaceGraph() {
 
         const params = {
           nComponents: 2,
-          nNeighbors: 15,
+          nNeighbors: Math.min(15, limited.length - 1),
           minDist: 0.15,
         };
 
         const umap = new UMAP(params);
 
-        const embedding: number[][] = umap.fit(standardized);
+        // umap.fit can be synchronous and intensive
+        const embedding = umap.fit(standardized);
+
+        if (!embedding || embedding.length === 0) {
+          throw new Error("UMAP failed to generate embedding");
+        }
 
         // Normalize embedding to [0,1] range
         let minX = Infinity,
@@ -229,7 +236,7 @@ export default function FeatureSpaceGraph() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   const fetchDetails = async (txn_id: string) => {
     setLoadingDetails(true);
@@ -290,30 +297,40 @@ export default function FeatureSpaceGraph() {
               Color and size represent model risk score. Visualization only.
             </p>
           </div>
-          {!loading && !error && (
-            <div className="flex flex-col items-end gap-1">
-              <div className="text-xs text-zinc-500">
-                Showing {points.length} recent transactions
+          <div className="flex flex-col items-end gap-3">
+            <button
+              onClick={() => setRefreshKey(prev => prev + 1)}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 disabled:opacity-50 transition-all text-xs font-semibold"
+            >
+              <Activity className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              Refresh Map
+            </button>
+            {!loading && !error && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="text-xs text-zinc-500">
+                  Showing {points.length} recent transactions
+                </div>
+                <div className="flex gap-3 text-xs">
+                  {stats.highRisk > 0 && (
+                    <span className="text-red-400">
+                      ⚠ {stats.highRisk} high-risk
+                    </span>
+                  )}
+                  {stats.blocked > 0 && (
+                    <span className="text-red-500">
+                      🚫 {stats.blocked} blocked
+                    </span>
+                  )}
+                  {stats.review > 0 && (
+                    <span className="text-amber-400">
+                      👁 {stats.review} under review
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-3 text-xs">
-                {stats.highRisk > 0 && (
-                  <span className="text-red-400">
-                    ⚠ {stats.highRisk} high-risk
-                  </span>
-                )}
-                {stats.blocked > 0 && (
-                  <span className="text-red-500">
-                    🚫 {stats.blocked} blocked
-                  </span>
-                )}
-                {stats.review > 0 && (
-                  <span className="text-amber-400">
-                    👁 {stats.review} under review
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Legend */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { AlertTriangle, Play, Pause, ShieldCheck, ShieldAlert, Activity, Gauge, FileText } from 'lucide-react'
+import { AlertTriangle, Play, Pause, ShieldCheck, ShieldAlert, Activity, Gauge, FileText, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import testTransactions from '../data/test_transactions.json'
 import TravelAnomalyPanel, { type TravelAnomaly } from './TravelAnomalyPanel'
@@ -90,6 +90,25 @@ export default function DashboardPreview() {
     flagged: 0,
     verified: 0
   })
+
+  const handleExportCsv = async () => {
+    try {
+      const response = await authFetch('http://localhost:8000/export/fraud-csv')
+      if (!response.ok) throw new Error("Export failed")
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `fraud_${role}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Export error:", error)
+      alert("Failed to export fraud cases CSV")
+    }
+  }
 
   const streamRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const indexRef = useRef(0)
@@ -272,6 +291,14 @@ export default function DashboardPreview() {
                 >
                   {isStreaming ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
                   {isStreaming ? 'Stop Stream' : 'Start Live Stream'}
+                </button>
+
+                <button
+                  onClick={handleExportCsv}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 transition-all shadow-md"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Fraud CSV
                 </button>
 
                 <div className="flex items-center gap-4 text-sm">
