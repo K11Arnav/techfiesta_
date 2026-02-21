@@ -33,6 +33,7 @@ def execute_query(query, params=None):
 
 import financial_transaction_fraud_detection as ml_pipeline
 from fraud_rules import RuleEngine
+from explainability_v2 import build_explainability_v2
 from email_notifier import EmailNotifier
 import user_risk
 
@@ -420,6 +421,19 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
         if decision in ["BLOCK", "REVIEW"]:
             background_tasks.add_task(EmailNotifier.send_fraud_alert, txn_id, risk_score, decision)
 
+        # Explainability v2 (Observation Layer)
+        rule_triggered = any(v == 1 for v in rule_details.values()) if rule_details else False
+        explainability_v2 = build_explainability_v2(
+            xgb_score=xgb_score,
+            iso_score=iso_score,
+            rule_score=rule_score,
+            rule_triggered=rule_triggered,
+            shap_explanation=explanation,
+            risk_score=risk_score,
+            decision=decision,
+            override=False
+        )
+
         return {
             "txn_id": txn_id,
             "risk_score": risk_score,
@@ -444,7 +458,8 @@ def score_transaction(transaction: Transaction, background_tasks: BackgroundTask
                 "iso": iso_score,
                 "graph": graph_score
             },
-            "neighbors": neighbors
+            "neighbors": neighbors,
+            "explainability_v2": explainability_v2
         }
 
     except Exception as e:
