@@ -12,10 +12,31 @@ export default function NavbarScores() {
 
     const fetchScores = async () => {
         try {
+<<<<<<< HEAD
             const [xgbRes, isoRes, graphRes] = await Promise.all([
                 authFetch('http://localhost:8000/score/xgb').then(res => res.json()),
                 authFetch('http://localhost:8000/score/iso').then(res => res.json()),
                 authFetch('http://localhost:8000/score/graph').then(res => res.json())
+=======
+            // Endpoints expect a POST with a body
+            const mockBody = JSON.stringify({ Amount: 100, Time: 100 });
+            const [xgbRes, isoRes, graphRes] = await Promise.all([
+                authFetch('http://localhost:8000/score/xgb', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: mockBody
+                }).then(res => res.json()),
+                authFetch('http://localhost:8000/score/iso', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: mockBody
+                }).then(res => res.json()),
+                authFetch('http://localhost:8000/score/graph', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: mockBody
+                }).then(res => res.json())
+>>>>>>> RMS
             ]);
 
             setScores({
@@ -25,7 +46,10 @@ export default function NavbarScores() {
             });
         } catch (error) {
             console.error('Failed to fetch navbar scores:', error);
+<<<<<<< HEAD
             // On error, we keep previous scores or they stay null (--)
+=======
+>>>>>>> RMS
         }
     };
 

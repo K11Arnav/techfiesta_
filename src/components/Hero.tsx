@@ -1,4 +1,4 @@
-import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock, MapPin } from 'lucide-react'
+import { ArrowRight, Play, CheckCircle, AlertTriangle, Clock, MapPin, ShieldCheck } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -146,12 +146,15 @@ export default function Hero() {
               Watch Demo
             </button>
 
-            <button
-              onClick={() => scrollToSection('admin-panel')}
-              className="group px-8 py-4 bg-zinc-900 border border-zinc-700 text-zinc-300 text-lg font-semibold rounded-lg hover:bg-zinc-800 hover:text-white transition-all hover:scale-105 flex items-center gap-2 min-h-[44px]"
-            >
-              Admin Panel
-            </button>
+            {role === 'admin' && (
+              <button
+                onClick={() => navigate('/risk-management')}
+                className="group px-8 py-4 bg-zinc-900 border border-zinc-700 text-zinc-300 text-lg font-semibold rounded-lg hover:bg-zinc-800 hover:text-white transition-all hover:scale-105 flex items-center gap-2 min-h-[44px]"
+              >
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                Risk Management
+              </button>
+            )}
 
             <button
               onClick={() => navigate('/location-demo')}

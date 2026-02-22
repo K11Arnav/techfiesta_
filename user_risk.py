@@ -1,17 +1,8 @@
-"""
-User Profiling + Location Intelligence Module
-----------------------------------------------
-Post-processing layer that augments the existing ML ensemble with
-behavioral user risk and geolocation-based anomaly detection.
-
-Public API:
-    get_user_risk(user_id, amount, latitude, longitude) -> dict
-"""
-
 import json
 import os
 import time
 import math
+import random
 
 # ---------------------------------------------------------------------------
 # PROFILE DATA (loaded once at import)
@@ -25,6 +16,24 @@ def _load_profiles():
     return {}
 
 USER_PROFILES = _load_profiles()
+
+# ---------------------------------------------------------------------------
+# DEMO CITIES — weighted random selection for unknown user IDs
+# ---------------------------------------------------------------------------
+DEMO_CITIES = [
+    {"city": "Mumbai", "lat": 19.0760, "lon": 72.8777, "weight": 0.25},
+    {"city": "Delhi", "lat": 28.6139, "lon": 77.2090, "weight": 0.20},
+    {"city": "Bengaluru", "lat": 12.9716, "lon": 77.5946, "weight": 0.15},
+    {"city": "Chennai", "lat": 13.0827, "lon": 80.2707, "weight": 0.10},
+    {"city": "Hyderabad", "lat": 17.3850, "lon": 78.4867, "weight": 0.10},
+    {"city": "Kolkata", "lat": 22.5726, "lon": 88.3639, "weight": 0.08},
+    {"city": "Pune", "lat": 18.5204, "lon": 73.8567, "weight": 0.07},
+    {"city": "Ahmedabad", "lat": 23.0225, "lon": 72.5714, "weight": 0.05},
+]
+_DEMO_WEIGHTS = [c["weight"] for c in DEMO_CITIES]
+
+# Cache: user_id → assigned city (stable within a session)
+_user_city_cache: dict[str, dict] = {}
 
 # ---------------------------------------------------------------------------
 # IN-MEMORY CACHES
@@ -185,11 +194,15 @@ def get_user_risk(
     """
     profile = USER_PROFILES.get(user_id)
 
-    # Unknown user → zero risk (safe default)
+    # Unknown user → assign a weighted random demo city (cached per user_id)
     if profile is None:
+        if user_id not in _user_city_cache:
+            chosen = random.choices(DEMO_CITIES, weights=_DEMO_WEIGHTS, k=1)[0]
+            _user_city_cache[user_id] = chosen
+        city_info = _user_city_cache[user_id]
         return {
-            "user_name": "Unknown",
-            "user_city": "Unknown",
+            "user_name": f"User ({city_info['city']})",
+            "user_city": city_info["city"],
             "user_risk": 0.0,
             "location_risk": 0.0,
             "geo_distance_km": 0.0,

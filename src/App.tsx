@@ -21,6 +21,10 @@ import LoginPage from './components/LoginPage'
 import FraudPage from './components/FraudPage'
 import AnomalyPage from './components/AnomalyPage'
 import GraphPage from './components/GraphPage'
+<<<<<<< HEAD
+=======
+import RiskManagementDashboard from './components/RiskManagementDashboard'
+>>>>>>> RMS
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -88,6 +92,12 @@ function AppRoutes() {
       <Route path="/anomaly" element={<ProtectedRoute><AnomalyPage /></ProtectedRoute>} />
       <Route path="/graph" element={<ProtectedRoute><GraphPage /></ProtectedRoute>} />
 
+<<<<<<< HEAD
+=======
+      {/* Risk Management Dashboard (Admin) */}
+      <Route path="/risk-management" element={<ProtectedRoute><RiskManagementDashboard /></ProtectedRoute>} />
+
+>>>>>>> RMS
     </Routes>
   )
 }
