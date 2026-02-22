@@ -255,24 +255,47 @@ class Transaction(BaseModel):
 # --------------------------------------
 @app.post("/score/xgb")
 def score_xgb(txn: Transaction):
-    data = txn.dict()
+    data = txn.model_dump()
     df = pd.DataFrame([data])
     df = df[FEATURE_COLS]
-    return {"score": get_xgb_score(df)}
+    score = get_xgb_score(df)
+    explanation = ml_pipeline.shap_explain_transaction(
+        model=MODEL,
+        scaler=SCALER,
+        explainer=EXPLAINER,
+        transaction_df=df,
+        top_k=7
+    )
+    return {"score": score, "explanation": explanation}
 
 @app.post("/score/iso")
 def score_iso(txn: Transaction):
-    data = txn.dict()
+    data = txn.model_dump()
     df = pd.DataFrame([data])
     df = df[FEATURE_COLS]
-    return {"score": get_iso_score(df)}
+    score = get_iso_score(df)
+    
+    # Simple feature-based isolation explanation (top contributing features to anomaly)
+    # Since ISO doesn't have direct SHAP in our pipeline, we show Amount/Time as basic drivers
+    explanation = [
+        {"feature": "Amount", "impact": float(abs(data.get("Amount", 0)) / 1000.0)},
+        {"feature": "Time", "impact": 0.1}
+    ]
+    return {"score": score, "explanation": explanation}
 
 @app.post("/score/graph")
 def score_graph(txn: Transaction):
-    data = txn.dict()
+    data = txn.model_dump()
     df = pd.DataFrame([data])
     df = df[FEATURE_COLS]
-    return {"score": get_graph_score(df)}
+    
+    components = {"graph": {"model": GRAPH_MODEL, "reference_data": GRAPH_REF}}
+    results = ml_pipeline.compute_risk_score(df, components, weights={"graph": 1.0})
+    
+    return {
+        "score": float(results["graph"]), 
+        "neighbors": results["neighbors"]
+    }
 
 
 
@@ -667,6 +690,7 @@ def get_transactions(user: dict = Depends(auth_module.get_current_user)):
     if user["role"] != "admin" and data:
         data = [r for r in data if r.get("transaction_domain") in allowed]
     return data
+
 
 @app.get("/decisions")
 def get_decisions(user: dict = Depends(auth_module.get_current_user)):

@@ -109,33 +109,6 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Demo credentials hint */}
-                    <div className="mt-6 pt-5 border-t border-zinc-800">
-                        <p className="text-[11px] text-zinc-600 text-center uppercase tracking-wider font-semibold mb-3">Demo Accounts</p>
-                        <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                            {[
-                                { role: 'admin', email: 'admin@fraud.io' },
-                                { role: 'retail', email: 'retail@fraud.io' },
-                                { role: 'corporate', email: 'corp@fraud.io' },
-                                { role: 'merchant', email: 'merchant@fraud.io' },
-                                { role: 'card', email: 'card@fraud.io' },
-                                { role: 'international', email: 'intl@fraud.io' },
-                            ].map((d) => (
-                                <button
-                                    key={d.role}
-                                    type="button"
-                                    onClick={() => {
-                                        setEmail(d.email)
-                                        setPassword('demo123')
-                                    }}
-                                    className="px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors text-left"
-                                >
-                                    <span className="text-zinc-400 font-semibold uppercase">{d.role}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <p className="text-[10px] text-zinc-700 text-center mt-2">Password: demo123</p>
-                    </div>
                 </div>
             </motion.div>
         </div>

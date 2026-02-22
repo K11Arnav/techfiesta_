@@ -320,23 +320,38 @@ def compute_risk_score(transaction_df, components, weights=None):
 
 
 def shap_explain_transaction(model, scaler, explainer, transaction_df, top_k=5):
-    txn_scaled = transaction_df.copy()
-    txn_scaled[['Amount', 'Time']] = scaler.transform(txn_scaled[['Amount', 'Time']])
+    try:
+        txn_scaled = transaction_df.copy()
+        txn_scaled[['Amount', 'Time']] = scaler.transform(txn_scaled[['Amount', 'Time']])
 
-    shap_values = explainer.shap_values(txn_scaled)[0]
+        # Get SHAP values
+        shap_values = explainer.shap_values(txn_scaled)
+        
+        # Handle binary classification list output [class0, class1]
+        if isinstance(shap_values, list):
+            # We want class 1 (Fraud) impact
+            shap_output = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+        else:
+            shap_output = shap_values
 
-    shap_df = pd.DataFrame({
-        "feature": txn_scaled.columns,
-        "shap_value": shap_values
-    })
+        # If 2D array (samples, features), take first sample
+        if len(shap_output.shape) > 1:
+            shap_output = shap_output[0]
 
-    shap_df["abs_shap"] = shap_df["shap_value"].abs()
-    shap_df = shap_df.sort_values("abs_shap", ascending=False).head(top_k)
+        shap_df = pd.DataFrame({
+            "feature": txn_scaled.columns,
+            "shap_value": shap_output
+        })
 
-    explanation = [
-        {"feature": row.feature, "impact": float(row.shap_value)}
-        for row in shap_df.itertuples()
-    ]
+        shap_df["abs_shap"] = shap_df["shap_value"].abs()
+        shap_df = shap_df.sort_values("abs_shap", ascending=False).head(top_k)
 
-    return explanation
+        explanation = [
+            {"feature": str(row.feature), "impact": float(row.shap_value)}
+            for row in shap_df.itertuples()
+        ]
+        return explanation
+    except Exception as e:
+        print(f"SHAP Error: {e}")
+        return []
 

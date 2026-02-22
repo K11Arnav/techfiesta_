@@ -66,6 +66,25 @@ export default function Navigation({ scrolled }: NavigationProps) {
               Location Demo
             </button>
 
+            <button
+              onClick={() => navigate('/fraud')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Fraud
+            </button>
+            <button
+              onClick={() => navigate('/anomaly')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Anomaly
+            </button>
+            <button
+              onClick={() => navigate('/graph')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Graph
+            </button>
+
             {isAuthenticated ? (
               <div className="flex items-center gap-4 ml-4 pl-4 border-l border-zinc-800">
                 <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">

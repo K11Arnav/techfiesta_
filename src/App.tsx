@@ -18,6 +18,9 @@ import RuleApprovalSection from './components/RuleApprovalSection'
 import FeatureSpaceGraph from './components/FeatureSpaceGraph'
 import LocationFraudDemo from './components/LocationFraudDemo'
 import LoginPage from './components/LoginPage'
+import FraudPage from './components/FraudPage'
+import AnomalyPage from './components/AnomalyPage'
+import GraphPage from './components/GraphPage'
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +82,11 @@ function AppRoutes() {
 
       {/* Location Fraud Demo */}
       <Route path="/location-demo" element={<ProtectedRoute><LocationFraudDemo /></ProtectedRoute>} />
+
+      {/* Independent Model Pages */}
+      <Route path="/fraud" element={<ProtectedRoute><FraudPage /></ProtectedRoute>} />
+      <Route path="/anomaly" element={<ProtectedRoute><AnomalyPage /></ProtectedRoute>} />
+      <Route path="/graph" element={<ProtectedRoute><GraphPage /></ProtectedRoute>} />
 
     </Routes>
   )
