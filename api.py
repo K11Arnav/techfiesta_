@@ -947,6 +947,12 @@ def export_fraud_csv():
 
 
 # --------------------------------------
+# RISK MANAGEMENT ROUTER
+# --------------------------------------
+from risk_management import risk_router
+app.include_router(risk_router)
+
+# --------------------------------------
 # RUN SERVER
 # --------------------------------------
 if __name__ == "__main__":

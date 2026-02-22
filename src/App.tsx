@@ -18,6 +18,7 @@ import RuleApprovalSection from './components/RuleApprovalSection'
 import FeatureSpaceGraph from './components/FeatureSpaceGraph'
 import LocationFraudDemo from './components/LocationFraudDemo'
 import LoginPage from './components/LoginPage'
+import RiskManagementDashboard from './components/RiskManagementDashboard'
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +80,9 @@ function AppRoutes() {
 
       {/* Location Fraud Demo */}
       <Route path="/location-demo" element={<ProtectedRoute><LocationFraudDemo /></ProtectedRoute>} />
+
+      {/* Risk Management Dashboard (Admin) */}
+      <Route path="/risk-management" element={<ProtectedRoute><RiskManagementDashboard /></ProtectedRoute>} />
 
     </Routes>
   )

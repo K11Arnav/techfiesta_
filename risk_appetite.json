@@ -1,0 +1,10 @@
+{
+    "gross_fraud_loss_inr": 500000,
+    "false_positive_rate": 15.0,
+    "fraud_detection_rate_min": 85.0,
+    "sar_latency_ms": 2000,
+    "operational_risk_exposure": 1000000,
+    "score_threshold_high": 0.7,
+    "score_threshold_low": 0.5,
+    "usd_to_inr_rate": 83
+}

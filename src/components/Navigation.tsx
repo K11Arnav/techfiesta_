@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, X, MapPin, LogOut, User } from 'lucide-react'
+import { Menu, X, MapPin, LogOut, User, Shield } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -65,6 +65,15 @@ export default function Navigation({ scrolled }: NavigationProps) {
               <MapPin className="w-3.5 h-3.5" />
               Location Demo
             </button>
+            {role === 'admin' && (
+              <button
+                onClick={() => navigate('/risk-management')}
+                className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Risk Management
+              </button>
+            )}
 
             {isAuthenticated ? (
               <div className="flex items-center gap-4 ml-4 pl-4 border-l border-zinc-800">
