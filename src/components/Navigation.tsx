@@ -29,7 +29,7 @@ export default function Navigation({ scrolled }: NavigationProps) {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center">
             <button
               onClick={() => scrollToSection('hero')}
               className="text-xl font-bold tracking-tight text-zinc-50 hover:text-emerald-400 transition-colors"
@@ -65,6 +65,26 @@ export default function Navigation({ scrolled }: NavigationProps) {
               <MapPin className="w-3.5 h-3.5" />
               Location Demo
             </button>
+
+            <button
+              onClick={() => navigate('/fraud')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Fraud
+            </button>
+            <button
+              onClick={() => navigate('/anomaly')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Anomaly
+            </button>
+            <button
+              onClick={() => navigate('/graph')}
+              className="text-zinc-400 hover:text-zinc-50 transition-colors font-medium text-sm"
+            >
+              Graph
+            </button>
+
             {role === 'admin' && (
               <button
                 onClick={() => navigate('/risk-management')}
@@ -117,53 +137,55 @@ export default function Navigation({ scrolled }: NavigationProps) {
       </div>
 
       {/* Mobile Navigation */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800">
-          <div className="px-4 pt-2 pb-4 space-y-2">
-            <button
-              onClick={() => scrollToSection('features')}
-              className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
-            >
-              Features
-            </button>
-            <button
-              onClick={() => scrollToSection('how-it-works')}
-              className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
-            >
-              How It Works
-            </button>
-            <button
-              onClick={() => scrollToSection('dashboard')}
-              className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => { navigate('/location-demo'); setMobileMenuOpen(false); }}
-              className="flex items-center gap-2 w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
-            >
-              <MapPin className="w-4 h-4" />
-              Location Demo
-            </button>
-            {isAuthenticated ? (
+      {
+        mobileMenuOpen && (
+          <div className="md:hidden bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800">
+            <div className="px-4 pt-2 pb-4 space-y-2">
               <button
-                onClick={() => { logout(); navigate('/login'); setMobileMenuOpen(false); }}
-                className="flex items-center gap-2 w-full text-left px-4 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                onClick={() => scrollToSection('features')}
+                className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
               >
-                <LogOut className="w-4 h-4" />
-                Logout ({role})
+                Features
               </button>
-            ) : (
               <button
-                onClick={() => scrollToSection('cta')}
-                className="block w-full text-left px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-colors"
+                onClick={() => scrollToSection('how-it-works')}
+                className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
               >
-                Try Demo
+                How It Works
               </button>
-            )}
+              <button
+                onClick={() => scrollToSection('dashboard')}
+                className="block w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => { navigate('/location-demo'); setMobileMenuOpen(false); }}
+                className="flex items-center gap-2 w-full text-left px-4 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 rounded-lg transition-colors"
+              >
+                <MapPin className="w-4 h-4" />
+                Location Demo
+              </button>
+              {isAuthenticated ? (
+                <button
+                  onClick={() => { logout(); navigate('/login'); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-2 w-full text-left px-4 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout ({role})
+                </button>
+              ) : (
+                <button
+                  onClick={() => scrollToSection('cta')}
+                  className="block w-full text-left px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-500 hover:to-emerald-400 transition-colors"
+                >
+                  Try Demo
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </nav>
+        )
+      }
+    </nav >
   )
 }
